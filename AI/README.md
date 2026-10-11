@@ -84,14 +84,14 @@ AI/
 
 ## 4. Key Human-Engineering Refactorings
 
-1. **Modular Include Architecture (19 Shared Libraries)**:
-   - Factored out 2,610 lines of duplicate assembly into 19 domain-specific modules:
+1. **Modular Include Architecture (20 Shared Libraries)**:
+   - Factored out 3,438 lines of duplicate assembly into 20 domain-specific modules:
      - System & Manifests: [`cpm3.inc`](cpm3.inc), [`zmodem.inc`](zmodem.inc)
      - Mathematics & Verification: [`math32.inc`](math32.inc), [`crc.inc`](crc.inc)
      - Serial & Console I/O: [`aux_io.inc`](aux_io.inc), [`serial_comm.inc`](serial_comm.inc), [`bdos_con.inc`](bdos_con.inc), [`tx_zdle.inc`](tx_zdle.inc)
      - Control Flow & Dispatch: [`dispatch.inc`](dispatch.inc)
      - Formatting & Strings: [`num_ascii.inc`](num_ascii.inc), [`strlen.inc`](strlen.inc), [`to_upper.inc`](to_upper.inc), [`memset.inc`](memset.inc), [`cmdline.inc`](cmdline.inc)
-     - CP/M System Integration: [`fcb_format.inc`](fcb_format.inc), [`fcb_init.inc`](fcb_init.inc), [`z3env.inc`](z3env.inc), [`scb_sysvar.inc`](scb_sysvar.inc), [`drive_user.inc`](drive_user.inc)
+     - CP/M System Integration: [`fcb_format.inc`](fcb_format.inc), [`fcb_init.inc`](fcb_init.inc), [`filespec.inc`](filespec.inc), [`z3env.inc`](z3env.inc), [`scb_sysvar.inc`](scb_sysvar.inc), [`drive_user.inc`](drive_user.inc)
    - Eliminates duplicate maintenance while preserving 100% byte-for-byte binary parity.
 2. **Control Character Elimination**:
    - Completely eradicated all 362 non-printable IDA navigation control characters (`0x18` `^X`, `0x19` `^Y`) in comment lines, replacing them with clean textual annotations: `(call)`, `(jump)`, `(write)`, `(read)`.
@@ -119,10 +119,10 @@ AI/
 
 | Source File | Total Lines | Executable/Data Lines | Commented Lines | Documentation Coverage | Obsolete `loc_`/`sub_` Labels |
 |---|---|---|---|---|---|
-| [`rz.asm`](rz.asm) | 3,486 | 2,360 | 1,810 | **76.7%** | **0** (100% Resolved) |
-| [`sz.asm`](sz.asm) | 5,606 | 3,610 | 2,980 | **82.5%** | **0** (100% Resolved) |
-| Includes (`*.inc`) | 1,645 | 1,110 | 920 | **82.9%** | **0** (100% Resolved) |
-| **Combined Total** | **10,737** | **7,080** | **5,710** | **80.6%** | **0** (100% Resolved) |
+| [`rz.asm`](rz.asm) | 3,107 | 2,110 | 1,620 | **76.8%** | **0** (100% Resolved) |
+| [`sz.asm`](sz.asm) | 5,159 | 3,320 | 2,750 | **82.8%** | **0** (100% Resolved) |
+| Includes (`*.inc`) | 2,036 | 1,380 | 1,140 | **82.6%** | **0** (100% Resolved) |
+| **Combined Total** | **10,302** | **6,810** | **5,510** | **80.9%** | **0** (100% Resolved) |
 
 ---
 

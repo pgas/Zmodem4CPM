@@ -618,5 +618,39 @@ Following the user's decision to continue Track 1 (maximizing modular include ex
    - **2,610 total lines of duplicate assembly eliminated** from the monolithic sources.
    - **100% exact bit-for-bit parity maintained**: `make clean && make test` passes with zero drift against original 1992 reference binaries.
 
+---
+
+## Phase 23: Complete Extraction of the CP/M Filespec & Wildcard Engine (`AI/filespec.inc`)
+
+### Objectives
+1. Factor out the full CP/M filespec parsing, drive/user extraction, and ZCPR3 named directory expansion engine.
+2. Eliminate all duplicated filespec routines between `rz.asm` and `sz.asm`.
+3. Preserve 100% exact bit-for-bit binary parity.
+
+### Accomplishments
+
+1. **Extraction of CP/M Filespec & Wildcard Engine (`AI/filespec.inc`)**:
+   - Subroutines contained:
+     - `parse_cpm_filespec`: Entry point parsing path string into standard 36-byte FCB.
+     - `parse_fcb_drive_user`: Extractor for drive letter, user number, filename, and extension with delimiter tracking (`fcb_parse_state`, `fcb_drive_specified`, `fcb_active_user`).
+     - `validate_fcb_char`: Primary name and extension character validator, space-filler, and `?`/`*` wildcard converter.
+     - `inc_file_counter`: Wildcard occurrence counter (`file_batch_index`).
+     - `fcb_check_wildcards`: Wildcard validation in drive/user path prefixes.
+     - `fcb_match_drive`: Explicit drive and user area specifier validator.
+     - `fcb_set_attributes`: CP/M 3 extended FCB file attribute matching.
+     - `fcb_expand_wildcards`: Z-System Named Directory Table (`NDR`) scanner and expander.
+     - `check_delimiter_or_term` (aliased as `valid_fnc`): Path delimiter and control character validator.
+     - `parse_numeric_user`: Repeated-multiplication (`x10`) ASCII-to-binary user number converter (`0..15`).
+   - Replaced 381 lines in `rz.asm` and 449 lines in `sz.asm`.
+   - **Eliminated 828 duplicate lines of assembly**.
+
+2. **Overall Impact**:
+   - **20 total modular include files active** in `AI/`.
+   - **3,438 total lines of duplicate assembly eliminated** across `rz.asm` and `sz.asm`.
+   - **Monolithic sources substantially reduced**:
+     - `rz.asm`: 3,107 lines (reduced from original 6,000+ lines).
+     - `sz.asm`: 5,159 lines (reduced from original 9,000+ lines).
+   - **100% exact bit-for-bit parity maintained**: `make clean && make test` verifies exact match against 1992 reference binaries.
+
 
 

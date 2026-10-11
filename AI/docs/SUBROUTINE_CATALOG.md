@@ -75,7 +75,7 @@ This catalog indexes all subroutines across [`rz.asm`](../rz.asm) (receiver) and
 | `sub_13BA`| `tx_hex_header` | Format and transmit frame header as ASCII hexadecimal (`ZHEX`) | All registers |
 | `sub_1418`| `tx_hex_byte` | Output binary byte as two uppercase ASCII hexadecimal characters | A, BC, HL |
 | `sub_142F`| `tx_zdle_escaped_char` | Transmit byte over serial AUX port with ZDLE escape translation (`tx_zdle.inc`) | A, BC, HL |
-| `sub_1492`| `parse_cpm_filespec` | Parse filename string into standard 36-byte CP/M FCB structure | All registers |
+| `sub_1492`| `parse_cpm_filespec` | Parse filename string into standard 36-byte CP/M FCB structure (`filespec.inc`) | All registers |
 | `sub_14A7`| `parse_fcb_drive_user` | Extract explicit drive letter and user area number into FCB | All registers |
 | `sub_1522`| `validate_fcb_char` | Validate legal character for CP/M filename compatibility | A, F |
 | `sub_1543`| `inc_file_counter` | Increment count of parsed wildcard characters in filespec | HL |
@@ -156,7 +156,7 @@ This catalog indexes all subroutines across [`rz.asm`](../rz.asm) (receiver) and
 | `sub_0_15A8`| `tx_can_sequence` | Transmit 8x CAN (`0x18`) sequence with backspaces to abort transfer | A, HL |
 | `sub_0_15AB`| `tx_raw_string` | Send null-terminated ASCII string directly to serial AUX port | A, HL |
 | `sub_0_15B6`| `comm_rx_char_filtered` | Receive byte from AUX with flow control, timeout, and CAN checks | A, BC |
-| `sub_0_15D4`| `parse_cpm_filespec` | Parse filename into standard 36-byte CP/M FCB structure | All registers |
+| `sub_0_15D4`| `parse_cpm_filespec` | Parse filename into standard 36-byte CP/M FCB structure (`filespec.inc`) | All registers |
 | `sub_0_15E9`| `parse_fcb_drive_user` | Extract explicit drive letter and user area number into FCB | All registers |
 | `sub_0_1664`| `validate_fcb_char` | Validate legal CP/M filename character and count wildcards | A, F |
 | `sub_0_1685`| `inc_file_counter` | Increment processed wildcard characters counter | HL |
