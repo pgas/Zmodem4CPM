@@ -1,0 +1,15 @@
+# Build outputs and assembler listings
+AI/*.com
+AI/*.lst
+
+# Tools and external repos
+RomWBW
+RomWBW/
+z80-smart-disassembler
+z80-smart-disassembler/
+
+# Editor and OS temporary/backup files
+*.bak
+*.tmp
+*~
+.DS_Store
