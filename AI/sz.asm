@@ -207,6 +207,7 @@ start_check_filename:
 		ld	(hl), a			; Store into FCB drive field
 
 start_have_drive:
+; SMC WRITER: Patches immediate operand of ld a, imm at fetch_next_matched_file (default_drive_num)
 		ld	(default_drive_num), a	; Save active default drive number
 		ld	bc, 0Dh			; Offset 13: point to user number field in FCB
 		add	hl, bc
@@ -222,6 +223,7 @@ start_have_drive:
 		or	0C0h			; Set search attribute mask for directory scan
 		ld	de, file_fcb		; DE = FCB search mask
 		call	dir_search_wildcard	; Scan directory and collect all matching entries
+; SMC WRITER: Patches immediate operand of ld hl, imm at fetch_next_matched_file (files_matched_list)
 		ld	(files_matched_list), hl ; Save head pointer of matching files list
 		ld	a, c
 		ld	(26F7h), a		; Store count of matching files found
@@ -276,6 +278,7 @@ start_print_banner:
 ;           2. Return control cleanly to CP/M Console Command Processor (CCP).
 ; Notes   : Uses self-modifying code (SMC) via patch_exit_drive_user.
 ;============================================================================
+; SMC TARGET: Patched by ld (patch_exit_drive_user), hl at get_init_drive_user (line 315)
 patch_exit_drive_user:	.equ	$+1		; Points to the immediate 16-bit operand below
 start_exit_cleanup:
 		ld	bc, 0			; BC dynamically patched with saved user and drive
@@ -311,6 +314,7 @@ get_init_drive_user:
 		inc	a			; Convert 0-based drive to 1-based (1=A, 2=B...)
 		ld	(saved_drive_num), a	; Save initial drive number
 		ld	hl, (saved_user_num)	; HL = packed initial (saved_user_num, saved_drive_num)
+; SMC WRITER: Patches immediate operand of ld bc, imm at start_exit_cleanup (patch_exit_drive_user)
 		ld	(patch_exit_drive_user), hl ; Patch SMC exit restore operand (ld bc, ...)
 		ret				; Return
 ; End of function get_init_drive_user
@@ -1047,6 +1051,22 @@ table_dec_powers_32:
 ; Inputs   : HL = pointer to 32-bit integer, DE = output string buffer
 ; Outputs  : Output string filled with decimal digits (null-terminated)
 ; Modifies : All registers
+;
+; C-Equivalent Algorithm:
+;   void conv_num_to_ascii(uint32_t val, char *buf) {
+;       static const uint32_t p10[] = {
+;           1000000000, 100000000, 10000000, 1000000,
+;           100000, 10000, 1000, 100, 10
+;       };
+;       int emit = 0;
+;       for (int i = 0; i < 9; i++) {
+;           char d = '0';
+;           while (val >= p10[i]) { val -= p10[i]; d++; }
+;           if (d != '0' || emit) { *buf++ = d; emit = 1; }
+;       }
+;       *buf++ = '0' + (char)val; // remaining units digit
+;       *buf = '\0';
+;   }
 ;============================================================================
 conv_num_to_ascii:
 		ld	(patch_num_conv_ptr), de ; Store destination string pointer into SMC operand
@@ -1222,10 +1242,12 @@ init_crc_acc_step_1:
 ; Notes    : Uses self-modifying code (SMC) via files_matched_list and default_drive_num.
 ;============================================================================
 fetch_next_matched_file:
+; SMC TARGET: Patched by ld (files_matched_list), hl at main_tx_loop (line 225) and advanced below
 files_matched_list:	.equ	$+1		; SMC pointer immediate operand
 		ld	hl, 0			; Dynamically patched with matching files list
 		ld	de, tx_file_user	; Destination buffer: user byte followed by FCB
 		ldi				; Copy status/user byte
+; SMC TARGET: Patched by ld (default_drive_num), a at main_tx_loop (line 210)
 default_drive_num:	.equ	$+1		; SMC drive immediate operand
 		ld	a, 0			; Dynamically patched default drive number
 		ld	(de), a			; Store drive into FCB
@@ -1428,6 +1450,31 @@ tx_send_file_d_loop_1:
 ; Inputs   : None
 ; Outputs  : Protocol initialized
 ; Modifies : All registers
+;
+; Protocol State Machine:
+;       +-------------------------------------------------------------+
+;       |                    tx_dispatch_protocol                     |
+;       +-------------------------------------------------------------+
+;                                      |
+;                             [mode >= 3 (Z/Y)]?
+;                               /              \
+;                            (No)             (Yes)
+;                             /                  \
+;                            v                    v
+;                     Listen directly      Send ZRQINIT header
+;                            \                    /
+;                             v                  v
+;                      Wait response char (comm_rx_char_filtered)
+;                                      |
+;                 +--------------------+--------------------+
+;                 |           Match proto_negotiate_chars   |
+;                 +--------------------+--------------------+
+;                 |          |         |          |         |
+;                '*'       0xFE       'C'        NAK       CAN
+;                 |          |         |          |         |
+;                 v          v         v          v         v
+;               ZPAD       Error     CRC-16     Chksum   Wait 2nd CAN
+;              (Zmodem)   (Abort)   (Y/Xmodem) (Xmodem)  (Cancel)
 ;============================================================================
 tx_dispatch_protocol:
 		ld	a, (protocol_mode)	; Check active protocol mode
@@ -1633,6 +1680,7 @@ tx_zmodem_file_step_2:
 		call	copy_4bytes		; Update progress counter for display
 		call	print_transfer_stats	; Update console transfer progress display
 		ld	hl, (26E7h)		; Load packet payload length (128 or 1024)
+; SMC WRITER: Patches immediate operand of ld hl, imm at tx_packet_body_loop (patch_packet_len)
 		ld	(patch_packet_len), hl	; Store into SMC loop counter
 		ld	a, l			; Check low byte of length
 		cp	80h			; Is length 128 bytes?
@@ -1657,10 +1705,12 @@ tx_packet_byte_loop:
 		call	comm_tx_char_wait	; Transmit payload byte to serial port
 		pop	ix			; Restore buffer pointer
 
+; SMC TARGET: Patched by ld (patch_packet_len), hl above and decremented below
 patch_packet_len:	.equ	$+1		; SMC: packet payload byte counter
 tx_packet_body_loop:
 		ld	hl, 0000h		; Dynamically patched with remaining byte count
 		dec	hl			; Decrement remaining byte count
+; SMC WRITER: Updates immediate operand of ld hl, imm above (patch_packet_len)
 		ld	(patch_packet_len), hl	; Update remaining count
 		inc	ix			; Advance buffer pointer
 		ld	a, h			; Test if all bytes sent
@@ -1880,6 +1930,7 @@ zrinit_resp_vectors:
 ;----------------------------------------------------------------------------
 
 tx_data_subpac_call_1:
+; SMC WRITER: Patches immediate operand of ld bc, imm at tx_set_window_bc (tx_window_size)
 		ld	(tx_window_size), de	; Save header payload byte count into SMC operand
 		ld	hl, file_pos_curr	; HL = file_pos_curr (26B7h)
 		call	clear_4bytes		; Clear initial 32-bit file position to 0
@@ -1927,6 +1978,7 @@ tx_data_subpac_step_2:
 ; Self-modifying immediate parameter loaded with window size from caller.
 ;----------------------------------------------------------------------------
 tx_set_window_bc:
+; SMC TARGET: Patched by ld (tx_window_size), de at tx_data_subpac_call_1 above
 tx_window_size:	.equ	$+1		; SMC: payload length operand
 		ld	bc, 0000h		; BC = payload byte count (dynamically patched)
 		ld	a, ZCRCW		; Framing char ZCRCW (6Bh: wait for ACK)
@@ -2253,6 +2305,7 @@ tx_eof_resp_table:
 ; Waits for incoming header frame, with self-modifying sync-check operand.
 ;----------------------------------------------------------------------------
 tx_wait_header_or_sync:
+; SMC WRITER: Patches immediate operand of ld a, imm at patch_sync_op below
 		ld	(patch_sync_op), a	; Store mode into SMC operand
 
 tx_search_header_loop:
@@ -2280,6 +2333,7 @@ tx_rpos_resp_timeout:
 		ld	de, tx_pos_base		; DE points to tx_pos_base (26AFh)
 		ld	hl, rx_hdr_pos		; HL points to rx_hdr_pos (26B3h)
 		call	copy_4bytes		; Save received position
+; SMC TARGET: Patched by ld (patch_sync_op), a at tx_wait_header_or_sync above
 patch_sync_op:	.equ	$+1		; SMC: sync mode operand
 		ld	a, 000h			; Dynamically patched sync mode
 		cp	000h			; Compare with 0
@@ -2849,6 +2903,7 @@ tx_hex_byte:
 ; Modifies : A, BC, HL
 ;============================================================================
 tx_zdle_escaped_char:
+; SMC WRITER: Patches immediate operand of ld a, imm at tx_char_direct (patch_tx_char_byte)
 		ld	(patch_tx_char_byte), a ; Store byte into SMC direct transmission operand
 		ld	bc, +(hex_byte_jump_vector-hex_byte_char_table) ; Table size
 		ld	hl, hex_byte_char_table ; Search characters requiring escaping (CAN, CR, DLE, XON, XOFF)
@@ -2861,21 +2916,25 @@ tx_zdle_escaped_char:
 		jr	z, tx_char_direct	; If not requested, transmit directly
 
 tx_zdle_escape_prefix:
+; SMC WRITER: Modifies bit 6 of immediate operand at patch_tx_char_byte
 		ld	hl, patch_tx_char_byte ; HL points to byte operand
 		set	6, (hl)			; Invert/set bit 6 to escape control character
 		ld	a, ZDLE			; Transmit ZDLE escape byte (18h)
 		call	comm_tx_char_wait
 
+; SMC TARGET: Patched by ld (patch_tx_char_byte), a and set 6, (hl) above
 patch_tx_char_byte:	.equ	$+1		; SMC: direct character byte operand
 tx_char_direct:
 		ld	a, 0			; Byte to transmit
 comm_tx_char_wait:
+; SMC WRITER: Patches immediate operand of ld a, imm at line below (patch_tx_wait_flag)
 		ld	(patch_tx_wait_flag), a ; Store into transmit wait operand
 comm_tx_char_w_poll:
 		call	rx_buffer_poll		; Service background receive FIFO
 		call	aux_tx_ready		; Check if AUX transmitter is ready
 		jr	z, comm_tx_char_w_poll	; Wait until UART transmitter ready
 
+; SMC TARGET: Patched by ld (patch_tx_wait_flag), a above
 patch_tx_wait_flag:	.equ	$+1		; SMC: character to transmit operand
 		ld	a, 0			; Load character
 		jp	aux_tx_char		; Output character to AUX port
@@ -4559,6 +4618,21 @@ dir_partition_step_3:				; CODE XREF: dir_partition+10 (jump)
 ; Inputs   : DE = sort descriptor block
 ; Outputs  : Items permuted in place into sorted order
 ; Modifies : All registers
+;
+; C-Equivalent Algorithm (Cycle Following Permutation):
+;   void permute_in_place(void **ptrs, void *base, int count, int size) {
+;       for (int i = 0; i < count - 1; i++) {
+;           void *dest = ptrs[i];
+;           void *src  = base + i * size;
+;           if (dest > src) {
+;               swap_bytes(src, dest, size);
+;               // Update pointer table to trace displaced element
+;               for (int k = i + 1; k < count; k++) {
+;                   if (ptrs[k] == src) { ptrs[k] = dest; break; }
+;               }
+;           }
+;       }
+;   }
 ;============================================================================
 file_open_for_transmit:			; CODE XREF: dir_read_entry+21 (call)
 		ex	af, af'			; Preserve AF in alternate AF'
@@ -4906,6 +4980,22 @@ file_stream_read_next:				; CODE XREF: dir_partition+43 (call)
 ; Inputs   : Internal sort descriptor initialized
 ; Outputs  : Items sorted in ascending order
 ; Modifies : All registers
+;
+; C-Equivalent Algorithm:
+;   void shell_sort(int count) {
+;       int gap = count;
+;       while (1) {
+;           gap = gap / 2;
+;           if (gap == 0) break;
+;           if ((gap & 1) == 0) gap--; // force odd gap sequence
+;           for (int i = gap + 1; i <= count; i++) {
+;               for (int j = i - gap; j > 0; j -= gap) {
+;                   if (compare(j, j + gap) <= 0) break;
+;                   swap(j, j + gap);
+;               }
+;           }
+;       }
+;   }
 ;============================================================================
 file_stream_read_record:			; CODE XREF: file_open_for_transmit+A (call)
 		ld	hl, (sort_item_count)	; HL = item count N

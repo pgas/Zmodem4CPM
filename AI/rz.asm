@@ -112,9 +112,7 @@ skip_cl:
 		call	rx_batch_engine		; Execute core multi-protocol receiver engine
 		call	cpm3_sysvar_unhook	; Restore original CP/M 3 SCB error vectors
 
-; Self-Modifying Code (SMC) Exit Patch:
-; At startup, get_init_drive_user dynamically patched the immediate 16-bit
-; value of 'ld bc, 0' below with the caller's original drive and user values.
+; SMC TARGET: Patched by ld (patch_exit_drive_user), hl at get_init_drive_user (line 153)
 patch_exit_drive_user:	.equ	$+1		; Points to the immediate 16-bit operand below
 start_exit_restore:
 		ld	bc, 0			; BC loaded with saved drive and user
@@ -148,6 +146,7 @@ get_init_drive_user:
 		inc	a			; Convert 0-based drive to 1-based (1=A, 2=B...)
 		ld	(saved_drive_num), a	; Save initial drive number
 		ld	hl, (saved_user_num)	; HL = packed initial (saved_user_num, saved_drive_num)
+; SMC WRITER: Patches immediate operand of ld bc, imm at start_exit_restore (patch_exit_drive_user)
 		ld	(patch_exit_drive_user), hl ; Patch SMC exit restore operand (ld bc, ...)
 		ret				; Return
 
@@ -545,10 +544,12 @@ stats_str_buf:	.db    0 ;
 
 disp_bsy:
 		ld	hl, str_busy		; HL points to spinner character table: | / - \
+; SMC TARGET: Patched by ld (patch_stats_digit), a below
 patch_stats_digit:	.equ	$+1		; SMC: immediate operand holding current frame index
 		ld	a, 0			; Load current spinner frame index (0..3)
 		inc	a			; Advance to next frame
 		and	3			; Wrap around modulo 4 (0..3)
+; SMC WRITER: Patches immediate operand of ld a, imm above
 		ld	(patch_stats_digit), a	; Save updated spinner frame index
 		ld	e, a			; E = frame index offset
 		ld	d, 0			; D = 0
@@ -983,6 +984,22 @@ and32_loop_step_1:
 ; Inputs   : HL = pointer to 32-bit number, DE = destination string buffer
 ; Outputs  : Formatted ASCII decimal string written to buffer
 ; Modifies : A, BC, DE, HL
+;
+; C-Equivalent Algorithm:
+;   void conv_num_to_ascii(uint32_t val, char *buf) {
+;       static const uint32_t p10[] = {
+;           1000000000, 100000000, 10000000, 1000000,
+;           100000, 10000, 1000, 100, 10
+;       };
+;       int emit = 0;
+;       for (int i = 0; i < 9; i++) {
+;           char d = '0';
+;           while (val >= p10[i]) { val -= p10[i]; d++; }
+;           if (d != '0' || emit) { *buf++ = d; emit = 1; }
+;       }
+;       *buf++ = '0' + (char)val; // remaining units digit
+;       *buf = '\0';
+;   }
 ;============================================================================
 conv_num_to_ascii:
 		ld	(patch_num_conv_ptr), de ; Store destination string pointer into SMC operand
@@ -1054,8 +1071,10 @@ conv_num_to_as_br_2:
 ;============================================================================
 checksum8_update:
 		push	af			; Preserve AF
+; SMC TARGET: Patched by ld (patch_checksum8_val), a below and at init_crc_acc (line 1102)
 patch_checksum8_val:	.equ	$+1		; SMC: immediate byte operand holding running checksum
 		add	a, 0			; Add byte to running 8-bit checksum accumulator
+; SMC WRITER: Patches immediate operand of add a, imm above
 		ld	(patch_checksum8_val), a ; Store updated checksum back to SMC operand
 		pop	af			; Restore original AF
 		ret				; Return
@@ -1077,7 +1096,9 @@ init_crc_acc:
 		xor	a			; Clear A
 		ld	h, a			; HL = 0000h
 		ld	l, a
+; SMC WRITER: Patches immediate operand of add a, imm at checksum8_update (patch_checksum8_val)
 		ld	(patch_checksum8_val), a ; Reset 8-bit checksum accumulator to 0
+; SMC WRITER: Patches immediate operand of ld hl, imm at crc16 (crc_seed / crc16_seed+1)
 		ld	(crc_seed), hl		; Reset 16-bit CRC-CCITT accumulator to 0
 		ld	hl, rbuf_bfree_step_3	; HL points to 32-bit CRC accumulator
 		jp	dec32_zero		; Zero out 4 bytes (CRC-32) and return
@@ -1131,6 +1152,27 @@ calc_mask_done:
 ; Inputs   : None
 ; Outputs  : Transfer completed or aborted
 ; Modifies : All registers
+;
+; Protocol State Machine:
+;       +-------------------------------------------------------------+
+;       |                      rx_batch_engine                        |
+;       +-------------------------------------------------------------+
+;                                      |
+;                             [mode >= 3 (Z/Y)]?
+;                               /              \
+;                            (No)             (Yes)
+;                             /                  \
+;                            v                    v
+;                     rx_batch_xmodem      Send ZRINIT frame
+;                     (Xmodem Receive)            |
+;                                                 v
+;                                         Remote Response?
+;                                         /      |       \
+;                                    (timeout) (ZFILE) (No Zmodem)
+;                                       /        |        \
+;                                      v         v         v
+;                                    ABORT  rx_zfile_hdr rx_batch_ymodem
+;                                    (CAN)  (Zmodem Rx)  (Ymodem Fallback)
 ;============================================================================
 rx_batch_engine:
 		xor	a			; Clear accumulator
@@ -1159,6 +1201,7 @@ rx_batch_set_flags:
 		cp	3			; Mode < 3 implies Xmodem
 		jr	c, rx_batch_xmodem	; If Xmodem requested, enter Xmodem receive
 		ld	a, 1			; ZRINIT frame type = 1
+; SMC WRITER: Patches immediate operand of ld a, imm at rx_wait_zrinit (patch_zrinit_flags)
 		ld	(patch_zrinit_flags), a	; Set ZRINIT frame type in transmit header
 		call	rx_wait_zrinit		; Send ZRINIT and wait for remote sender response
 		jp	c, rx_batch_abort_can	; On timeout/error/abort, send CAN sequence
@@ -1457,6 +1500,7 @@ rx_wait_zrinit_step_1:
 		ld	hl, (file_offset_hi)	; Receiver buffer size limit
 		ld	(ix+0), l		; Buffer size low byte
 		ld	(ix+1), h		; Buffer size high byte
+; SMC TARGET: Patched by ld (patch_zrinit_flags), a at rx_batch_engine (line 1199) and reset below
 patch_zrinit_flags:	.equ	$+1		; SMC: frame type byte to transmit
 		ld	a, ZRINIT		; Immediate frame type operand (ZRINIT=1)
 		call	tx_hex_header		; Transmit HEX header with receiver capabilities
@@ -1837,6 +1881,7 @@ disk_write_flu_br_1:
 		ld	a, (flag_ymodem_active)	; Check if Ymodem/binary transfer mode
 		cp	0FFh
 		jr	z, disk_write_flu_step_1 ; If binary mode, bypass CRLF conversion
+; SMC TARGET: Patched by ld (patch_rx_retry_count), a below
 patch_rx_retry_count:	.equ	$+1		; SMC: stores previous byte to detect LF after CR
 disk_write_flu_br_2:
 		ld	a, 0			; Load previous character
@@ -1850,6 +1895,7 @@ disk_write_flu_br_2:
 		ret	c			; Return on disk write error
 disk_write_flu_step_1:
 		ld	a, (hl)			; Load character from buffer
+; SMC WRITER: Patches immediate operand of ld a, imm above (patch_rx_retry_count)
 		ld	(patch_rx_retry_count), a ; Save character for next CRLF check
 		inc	hl			; Advance memory buffer pointer
 		dec	bc			; Decrement pending byte counter
@@ -1866,10 +1912,12 @@ disk_write_flu_step_1:
 ;----------------------------------------------------------------------------
 
 disk_write_flu_step_2:
+; SMC WRITER: Patches immediate operand of ld c, imm at disk_write_flu_call_1 (smc_write_char_byte)
 		ld	(smc_write_char_byte), a ; Save character byte into SMC operand
 		push	bc			; Preserve BC
 		push	de			; Preserve DE
 		push	hl			; Preserve HL
+; SMC TARGET: Patched by ld (smc_write_char_byte), a above
 smc_write_char_byte:	.equ	$+1		; SMC: immediate byte operand holding character to write
 disk_write_flu_call_1:
 		ld	c, 0			; Load character byte into C
@@ -2866,11 +2914,13 @@ rx_dispatcher_call_2:
 		ld	(active_packet_len), hl	; Save active packet length
 		ld	b, 0Ah			; Timeout = 10 ticks
 		call	comm_rx_char_filtered	; Read packet sequence number
+; SMC WRITER: Patches immediate operand of add a, imm below (patch_rx_frame_type)
 		ld	(patch_rx_frame_type), a ; Save sequence number
 		jp	c, rx_dispatcher_call_5	; On timeout, record error
 		ld	b, 0Ah			; Timeout = 10 ticks
 		call	comm_rx_char_filtered	; Read inverted packet sequence number
 		jp	c, rx_dispatcher_call_5	; On timeout, record error
+; SMC TARGET: Patched by ld (patch_rx_frame_type), a above
 patch_rx_frame_type:	.equ	$+1		; SMC: immediate operand holding packet sequence number
 		add	a, 0			; Add sequence number to inverted sequence number
  		cp	0FFh			; Sum must equal 0FFh (valid 1's complement)
@@ -3077,6 +3127,7 @@ tx_hex_byte:
 ;----------------------------------------------------------------------------
 
 tx_hex_byte_loop_1:
+; SMC WRITER: Patches immediate operand of ld a, imm at tx_hex_byte_call_2 (patch_tx_char_byte)
 		ld	(patch_tx_char_byte), a	; Save character into SMC operand
       		ld	bc, +(hex_byte_jump_vector-hex_byte_char_table) ; Table entry count
       		ld	hl, hex_byte_char_table	; HL points to escape character lookup table
@@ -3088,19 +3139,23 @@ tx_hex_byte_loop_1:
       		or	a
       		jr	z, tx_hex_byte_call_2	; If escaping not active, transmit directly
 tx_hex_byte_call_1:
+; SMC WRITER: Modifies bit 6 of immediate operand at patch_tx_char_byte
 		ld	hl, patch_tx_char_byte	; Set bit 6 to convert control char to printable
       		set	6, (hl)
       		ld	a, 18h			; Send ZDLE escape character (18h) prefix first
       		call	comm_tx_char_wait
+; SMC TARGET: Patched by ld (patch_tx_char_byte), a and set 6, (hl) above
 patch_tx_char_byte:	.equ	$+1		; SMC: immediate byte operand holding escaped character
 tx_hex_byte_call_2:
 		ld	a, 0			; Load escaped or raw character
 comm_tx_char_wait:
+; SMC WRITER: Patches immediate operand of ld a, imm at line below (patch_tx_wait_flag)
 		ld	(patch_tx_wait_flag), a	; Save character to transmit
 comm_tx_char_w_call_1:
 		call	rx_buffer_poll		; Poll receive buffer while waiting for UART ready
 		call	aux_tx_ready		; Check if AUX port output is ready for next byte
 		jr	z, comm_tx_char_w_call_1 ; Loop until AUX transmitter ready
+; SMC TARGET: Patched by ld (patch_tx_wait_flag), a above
 patch_tx_wait_flag:	.equ	$+1		; SMC: immediate byte operand holding character to transmit
 		ld	a, 0			; Load character
       		jp	aux_tx_char		; Transmit character via BDOS AUX write and return
