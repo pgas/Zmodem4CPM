@@ -3742,165 +3742,19 @@ parse_num_err:
 ;		S u b r	o u t i	n e
 
 ;============================================================================
-; Function : ascii_to_digit
-; Purpose  : Convert ASCII decimal digit character ('0'..'9') to numeric value
-; Inputs   : A = ASCII character
-; Outputs  : A = numeric value (0..9), CY if not digit
-; Modifies : A, F
+; CP/M File Control Block Initialization Library (fcb_init.inc)
 ;============================================================================
-ascii_to_digit:
-		sub	30h			; Subtract ASCII '0'
-		ret	c			; If < '0', carry set
-		cp	0Ah			; Compare with 10
-		ccf				; Invert carry: CY if >= 10, NC if 0..9
-		ret				; Return
+#include "fcb_init.inc"
+
 
 ;----------------------------------------------------------------------------
 ;		S u b r	o u t i	n e
 
 ;============================================================================
-; Function : init_empty_fcb
-; Purpose  : Clear and initialize FCB structure with default drive and spaces
-; Inputs   : DE = FCB pointer
-; Outputs  : 36-byte FCB initialized with drive and spaces
-; Modifies : A, DE
+; ZCPR3 / Z-System Environment Descriptor Library (z3env.inc)
 ;============================================================================
-init_empty_fcb:
-		xor	a			; Clear A (default drive 0)
-		ld	(de), a			; Store into FCB drive byte
-		inc	de			; Advance to filename field
-		call	init_fcb_spaces		; Fill filename and extension with spaces
-;============================================================================
-; Function : init_fcb_spaces
-; Purpose  : Fill FCB filename (8 bytes) and extension (3 bytes) with spaces
-; Inputs   : DE = FCB filename pointer
-; Outputs  : 11 bytes filled with spaces (20h)
-; Modifies : A, B, DE
-;============================================================================
-init_fcb_spaces:
-		ld	b, 0Bh			; 11 bytes (8 filename + 3 extension)
-		ld	a, 20h			; Fill with spaces (' ')
-		call	memset_de_spaces	; Fill memory
-		xor	a			; Clear extent byte (00h)
-		ld	(de), a
-		inc	de
-		call	get_cur_drive_user	; Get active user area
-		ld	a, c			; C = current user area
-		ld	(de), a			; Store into FCB extension user area
-		inc	de
-		ld	b, 3			; Clear remaining 3 extension bytes
-		xor	a
-;============================================================================
-; Function : memset_de_spaces
-; Purpose  : Fill memory at DE with byte in A for B count bytes
-; Inputs   : DE = buffer, A = fill value, B = length
-; Outputs  : Memory filled
-; Modifies : B, DE
-;============================================================================
-memset_de_spaces:
-		ld	(de), a			; Store fill byte into memory
-		inc	de			; Advance buffer pointer
-		djnz	memset_de_spaces	; Repeat for all B bytes
-		ret				; Return
+#include "z3env.inc"
 
-;----------------------------------------------------------------------------
-;		S u b r	o u t i	n e
-
-;============================================================================
-; Function : get_fcb_ext_ptr
-; Purpose  : Get pointer to FCB file extension field (offset +9)
-; Inputs   : HL = FCB pointer
-; Outputs  : A = extension byte, HL points to field
-; Modifies : A, DE, HL
-;============================================================================
-get_fcb_ext_ptr:
-		push	hl			; Preserve HL
-		push	de			; Preserve DE
-		ld	de, 2Eh			; Offset 2Eh in FCB destination structure
-		jp	fcb_field_get_offset	; Fetch field byte and return
-
-;----------------------------------------------------------------------------
-;		S u b r	o u t i	n e
-
-;============================================================================
-; Function : get_fcb_name_ptr
-; Purpose  : Get pointer to FCB filename field (offset +1)
-; Inputs   : HL = FCB pointer
-; Outputs  : A = first char of filename
-; Modifies : A, DE, HL
-;============================================================================
-get_fcb_name_ptr:
-		push	hl			; Preserve HL
-		push	de			; Preserve DE
-		ld	de, 2Ch			; Offset 2Ch in FCB destination structure
-		jp	fcb_field_get_offset	; Fetch field byte and return
-
-;----------------------------------------------------------------------------
-;		S u b r	o u t i	n e
-
-;============================================================================
-; Function : get_fcb_drive_ptr
-; Purpose  : Get pointer to FCB drive byte (offset 0)
-; Inputs   : HL = FCB pointer
-; Outputs  : A = drive byte
-; Modifies : A, DE, HL
-;============================================================================
-get_fcb_drive_ptr:
-		push	hl			; Preserve HL
-		push	de			; Preserve DE
-		ld	de, 2Dh			; Offset 2Dh in FCB destination structure
-		jp	fcb_field_get_offset	; Fetch field byte and return
-
-;----------------------------------------------------------------------------
-;		S u b r	o u t i	n e
-
-;============================================================================
-; Function : get_fcb_record_ptr
-; Purpose  : Get pointer to FCB current record / record count field
-; Inputs   : DE = FCB pointer
-; Outputs  : Record pointer retrieved
-; Modifies : DE, HL
-;============================================================================
-get_fcb_record_ptr:
-		push	de			; Preserve DE
-		ld	de, 15h			; Offset 15h in FCB structure
-		jp	fcb_rec_get_offset	; Fetch record offset and return
-
-;----------------------------------------------------------------------------
-
-fcb_field_get_offset:
-		ld	hl, (fcb_dest_ptr)	; Load base FCB pointer
-		ld	a, h			; Check if pointer is null (0000h)
-		or	l
-		jr	z, fcb_field_ret_val
-		add	hl, de			; Add field offset
-fcb_field_ret_val:
-		ld	a, (hl)			; Load field byte into A
-		pop	de			; Restore DE
-		pop	hl			; Restore HL
-		or	a			; Test byte, set flags
-		ret				; Return
-
-;----------------------------------------------------------------------------
-
-fcb_rec_get_offset:
-		ld	hl, (fcb_dest_ptr)	; Load base FCB pointer
-		add	hl, de			; Add record offset
-		ld	e, (hl)			; Load 16-bit record address into DE
-		inc	hl
-		ld	d, (hl)
-		inc	hl
-		ld	a, (hl)			; Load record count byte
-		ex	de, hl			; Return address in HL
-		pop	de			; Restore DE
-		or	a			; Set flags
-		ret				; Return
-
-;----------------------------------------------------------------------------
-
-fcb_rec_get_of_step_1:
-		ld	(fcb_dest_ptr), hl	; Store FCB pointer
-		ret				; Return
 
 ;----------------------------------------------------------------------------
 ;		S u b r	o u t i	n e
@@ -4005,50 +3859,10 @@ bdos_cs3:
 ;		S u b r	o u t i	n e
 
 ;============================================================================
-; Function : format_fcb_name
-; Purpose  : Format 8.3 FCB filename into printable ASCII string
-; Inputs   : DE = FCB pointer, HL = destination text buffer
-; Outputs  : Formatted string written to HL
-; Modifies : All registers
+; CP/M File Control Block Formatting Library (fcb_format.inc)
 ;============================================================================
-format_fcb_name:
-		push	bc			; Preserve BC
-		push	hl			; Preserve HL
-		push	de			; Preserve DE
-		push	af			; Preserve AF
-		ld	b, 8			; 8 filename characters
-		call	check_fcb_char		; Copy non-space filename characters
-		ld	(hl), 2Eh		; Append dot separator ('.')
-		inc	hl
-		ld	b, 3			; 3 extension characters
-		call	check_fcb_char		; Copy non-space extension characters
-		pop	af			; Restore AF
-		pop	de			; Restore DE
-		pop	hl			; Restore HL
-		pop	bc			; Restore BC
-		ret				; Return
+#include "fcb_format.inc"
 
-;----------------------------------------------------------------------------
-;		S u b r	o u t i	n e
-
-;============================================================================
-; Function : check_fcb_char
-; Purpose  : Check if character is a valid non-space filename character
-; Inputs   : DE = pointer to char
-; Outputs  : A = char, Z if space, NZ if character
-; Modifies : A
-;============================================================================
-check_fcb_char:
-		ld	a, (de)			; Load FCB character
-		and	7Fh			; Mask bit 7 (CP/M attribute bit)
-		cp	20h			; Is character a trailing space?
-		jr	z, format_fcb_space_done ; If space, skip writing
-		ld	(hl), a			; Write valid character into output string
-		inc	hl			; Advance output buffer pointer
-format_fcb_space_done:
-		inc	de			; Advance FCB pointer
-		djnz	check_fcb_char		; Repeat for all B characters
-		ret				; Return
 
 ;----------------------------------------------------------------------------
 ;		S u b r	o u t i	n e
@@ -4371,6 +4185,6 @@ fcb_parse_state:	.ds	1
 file_batch_index:	.ds	1
 fcb_drive_specified:	.ds	1
 fcb_active_user:	.ds	1
-fcb_dest_ptr:	.ds	2
+z3env_ptr:	.ds	2
 heap_base	.equ	$
 		.end	; start

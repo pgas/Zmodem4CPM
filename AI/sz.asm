@@ -4089,20 +4089,10 @@ parse_num_err:				; CODE XREF: parse_numeric_user+E (jump)
 ;		S u b r	o u t i	n e
 
 ;============================================================================
-; Function : ascii_to_digit
-; Purpose  : Convert ASCII decimal digit character ('0'..'9') to numeric value
-; Inputs   : A = ASCII character
-; Outputs  : A = numeric value (0..9), CY if not digit
-; Modifies : A, F
+; CP/M File Control Block Initialization Library (fcb_init.inc)
 ;============================================================================
-ascii_to_digit:				; CODE XREF: fcb_match_drive+1E (call)
-					; fcb_match_drive+2A (call) ...
-		sub	30h			; Subtract ASCII '0' (30h)
-		ret	c			; If < '0', Carry set (invalid)
-		cp	0Ah			; Compare against 10
-		ccf				; Invert Carry: CY=0 if 0..9, CY=1 if > 9
-		ret				; Return
-; End of function ascii_to_digit
+#include "fcb_init.inc"
+
 
 
 ;----------------------------------------------------------------------------
@@ -4110,187 +4100,10 @@ ascii_to_digit:				; CODE XREF: fcb_match_drive+1E (call)
 ;		S u b r	o u t i	n e
 
 ;============================================================================
-; Function : init_empty_fcb
-; Purpose  : Clear and initialize FCB structure with default drive and spaces
-; Inputs   : DE = FCB pointer
-; Outputs  : 36-byte FCB initialized with drive and spaces
-; Modifies : A, DE
+; ZCPR3 / Z-System Environment Descriptor Library (z3env.inc)
 ;============================================================================
-init_empty_fcb:				; CODE XREF: parse_cpm_filespec+8 (call)
-		xor	a			; A = 0 (default drive)
-		ld	(de), a			; Clear FCB drive byte
-		inc	de			; Point to filename field
-		call	init_fcb_spaces		; Fill filename/extension with spaces and clear record fields
-; End of function init_empty_fcb
+#include "z3env.inc"
 
-
-;----------------------------------------------------------------------------
-
-;		S u b r	o u t i	n e
-
-;============================================================================
-; Function : init_fcb_spaces
-; Purpose  : Fill FCB filename (8 bytes) and extension (3 bytes) with spaces
-; Inputs   : DE = FCB filename pointer
-; Outputs  : 11 bytes filled with spaces (20h)
-; Modifies : A, B, DE
-;============================================================================
-init_fcb_spaces:				; CODE XREF: parse_fcb_drive_user+44 (call)
-		ld	b, 0Bh			; 8 filename + 3 extension = 11 bytes
-		ld	a, 20h			; Fill with ASCII space (20h)
-		call	memset_de_spaces	; Fill filename and extension
-		xor	a			; Clear current extent (EX) byte
-		ld	(de), a			; Store into FCB
-		inc	de			; Advance pointer
-		call	bdos_call_wrapper	; Get user / system info
-		ld	a, c			; C = current user area
-		ld	(de), a			; Store into FCB S1 byte
-		inc	de			; Advance pointer
-		ld	b, 3			; Clear S2, RC bytes
-		xor	a			; Clear A and fall into memset_de_spaces
-; End of function init_fcb_spaces
-
-
-;----------------------------------------------------------------------------
-
-;		S u b r	o u t i	n e
-
-;============================================================================
-; Function : memset_de_spaces
-; Purpose  : Fill memory at DE with byte in A for B count bytes
-; Inputs   : DE = buffer, A = fill value, B = length
-; Outputs  : Memory filled
-; Modifies : B, DE
-;============================================================================
-memset_de_spaces:				; CODE XREF: init_fcb_spaces+4 (call)
-					; memset_de_spaces+2 (jump)
-		ld	(de), a			; Store byte into destination buffer
-		inc	de			; Advance destination pointer
-		djnz	memset_de_spaces	; Loop for all B bytes
-		ret				; Return
-; End of function memset_de_spaces
-
-
-;----------------------------------------------------------------------------
-
-;		S u b r	o u t i	n e
-
-;============================================================================
-; Function : get_fcb_ext_ptr
-; Purpose  : Get pointer to FCB file extension field (offset +9)
-; Inputs   : HL = FCB pointer
-; Outputs  : A = extension byte, HL points to field
-; Modifies : A, DE, HL
-;============================================================================
-get_fcb_ext_ptr:				; CODE XREF: fcb_match_drive (call)
-		push	hl			; Preserve HL
-		push	de			; Preserve DE
-		ld	de, 2Eh			; Offset 2Eh in Z3ENV (WHEEL byte)
-		jp	get_fcb_record_step_1	; Read byte from Z3ENV descriptor
-; End of function get_fcb_ext_ptr
-
-
-;----------------------------------------------------------------------------
-
-;		S u b r	o u t i	n e
-
-;============================================================================
-; Function : get_fcb_name_ptr
-; Purpose  : Get pointer to FCB filename field (offset +1)
-; Inputs   : HL = FCB pointer
-; Outputs  : A = first char of filename
-; Modifies : A, DE, HL
-;============================================================================
-get_fcb_name_ptr:				; CODE XREF: fcb_match_drive+7 (call)
-		push	hl			; Preserve HL
-		push	de			; Preserve DE
-		ld	de, 2Ch			; Offset 2Ch in Z3ENV (MDRV = max drive)
-		jp	get_fcb_record_step_1	; Read byte from Z3ENV descriptor
-; End of function get_fcb_name_ptr
-
-
-;----------------------------------------------------------------------------
-
-;		S u b r	o u t i	n e
-
-;============================================================================
-; Function : get_fcb_drive_ptr
-; Purpose  : Get pointer to FCB drive byte (offset 0)
-; Inputs   : HL = FCB pointer
-; Outputs  : A = drive byte
-; Modifies : A, DE, HL
-;============================================================================
-get_fcb_drive_ptr:				; CODE XREF: fcb_match_drive+38 (call)
-		push	hl			; Preserve HL
-		push	de			; Preserve DE
-		ld	de, 2Dh			; Offset 2Dh in Z3ENV (MUSR = max user)
-		jp	get_fcb_record_step_1	; Read byte from Z3ENV descriptor
-; End of function get_fcb_drive_ptr
-
-
-;----------------------------------------------------------------------------
-
-;		S u b r	o u t i	n e
-
-;============================================================================
-; Function : get_fcb_record_ptr
-; Purpose  : Get pointer to FCB current record / record count field
-; Inputs   : DE = FCB pointer
-; Outputs  : Record pointer retrieved
-; Modifies : DE, HL
-;============================================================================
-get_fcb_record_ptr:				; CODE XREF: fcb_expand_wildcards (call)
-		push	de			; Preserve DE
-		ld	de, 15h			; Offset 15h in Z3ENV (NDR = named dir table ptr)
-		jp	fcb_rec_get_offset	; Read 16-bit word pointer from Z3ENV
-;----------------------------------------------------------------------------
-
-get_fcb_record_step_1:				; CODE XREF: get_fcb_ext_ptr+5 (jump)
-					; get_fcb_name_ptr+5 (jump) ...
-		ld	hl, (z3env_ptr)		; HL = pointer to Z3ENV descriptor
-		ld	a, h			; Is pointer null (0000h)?
-		or	l			; Test HL
-		jr	z, get_fcb_record_step_2 ; If no Z3ENV, return 0
-		add	hl, de			; Add offset to descriptor base
-
-get_fcb_record_step_2:				; CODE XREF: get_fcb_record_ptr+C (jump)
-		ld	a, (hl)			; Fetch byte from descriptor
-		pop	de			; Restore DE
-		pop	hl			; Restore HL
-		or	a			; Set flags based on byte
-		ret				; Return
-;----------------------------------------------------------------------------
-
-fcb_rec_get_offset:				; CODE XREF: get_fcb_record_ptr+4 (jump)
-		ld	hl, (z3env_ptr)		; HL = pointer to Z3ENV descriptor
-		add	hl, de			; Add offset (15h)
-		ld	e, (hl)			; Load low byte of pointer
-		inc	hl			; Advance pointer
-		ld	d, (hl)			; Load high byte of pointer
-		inc	hl			; Advance pointer
-		ld	a, (hl)			; Load count byte
-		ex	de, hl			; HL = target table address
-		pop	de			; Restore DE
-		or	a			; Set flags
-		ret				; Return
-; End of function get_fcb_record_ptr
-
-
-;----------------------------------------------------------------------------
-
-;		S u b r	o u t i	n e
-
-;============================================================================
-; Function : init_z3env_descriptor
-; Purpose  : Save Z3ENV (Z-System environment descriptor) pointer
-; Inputs   : HL = Z3ENV pointer
-; Outputs  : byte_0_2711 updated
-; Modifies : HL
-;============================================================================
-init_z3env_descriptor:				; CODE XREF: start+11 (call)
-		ld	(z3env_ptr), hl		; Save Z-System environment descriptor address
-		ret				; Return
-; End of function init_z3env_descriptor
 
 
 ;----------------------------------------------------------------------------
@@ -5782,6 +5595,7 @@ cpm3_get_dpb_i_call_1:				; CODE XREF: cpm3_get_dpb_info+15 (jump)
 ; Outputs  : B = current drive (0..15), C = current user area (0..31)
 ; Modifies : A, BC
 ;============================================================================
+get_cur_drive_user:
 bdos_call_wrapper:				; CODE XREF: parse_fcb_drive_user+8 (call)
 					; init_fcb_spaces+A (call)
 		push	af			; Preserve AF
@@ -6068,57 +5882,10 @@ bdos_sys_call:				; CODE XREF: bdos_compute_file_size+15 (call)
 ;		S u b r	o u t i	n e
 
 ;============================================================================
-; Function : format_fcb_name
-; Purpose  : Format 8.3 FCB filename into printable ASCII string (NAME.EXT)
-; Inputs   : DE = FCB pointer, HL = destination text buffer
-; Outputs  : Formatted string written to HL
-; Modifies : All registers
+; CP/M File Control Block Formatting Library (fcb_format.inc)
 ;============================================================================
-format_fcb_name:				; CODE XREF: print_transfer_file_msg+10 (call)
-					; tx_send_file_data+C (call)
-		push	bc			; Preserve BC
-		push	hl			; Preserve HL
-		push	de			; Preserve DE
-		push	af			; Preserve AF
-		ld	b, 8			; 8 characters for primary filename
-		call	check_fcb_char		; Copy non-space filename characters
-		ld	(hl), '.'			; Insert dot separator
-		inc	hl			; Advance destination pointer
-		ld	b, 3			; 3 characters for file extension
-		call	check_fcb_char		; Copy non-space extension characters
-		pop	af			; Restore AF
-		pop	de			; Restore DE
-		pop	hl			; Restore HL
-		pop	bc			; Restore BC
-		ret				; Return
-; End of function format_fcb_name
+#include "fcb_format.inc"
 
-
-;----------------------------------------------------------------------------
-
-;		S u b r	o u t i	n e
-
-;============================================================================
-; Function : check_fcb_char
-; Purpose  : Copy non-space ASCII characters from DE to HL for B bytes
-; Inputs   : DE = source pointer, HL = destination pointer, B = character count
-; Outputs  : Characters copied, trailing spaces skipped
-; Modifies : A, B, DE, HL
-;============================================================================
-check_fcb_char:				; CODE XREF: format_fcb_name+6 (call)
-					; format_fcb_name+E (call) ...
-		ld	a, (de)			; Fetch character from FCB
-		and	7Fh			; Strip CP/M attribute bit 7
-		cp	' '			; Is character a space?
-		jr	z, check_fcb_char_loop_1 ; If space, do not store
-		ld	(hl), a			; Store printable character into output buffer
-		inc	hl			; Advance output pointer
-
-check_fcb_char_loop_1:				; CODE XREF: check_fcb_char+5 (jump)
-		inc	de			; Advance source pointer
-		djnz	check_fcb_char		; Loop for all B characters
-		ret				; Return
-; End of function check_fcb_char
 
 
 ;----------------------------------------------------------------------------
