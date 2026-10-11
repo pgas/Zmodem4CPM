@@ -268,10 +268,18 @@ Because `rz` and `sz` present different module sequences, a single monolithic `c
 | [`bdos_con.inc`](../bdos_con.inc) | Console & BDOS Wrappers | [`bdos_con_read`](../bdos_con.inc#L14), [`bdos_con_stat`](../bdos_con.inc#L24), [`bdos_con_write_char`](../bdos_con.inc#L34) (aliased as `bdos_s2`), [`bdos_sys_call`](../bdos_con.inc#L49) (aliased as `bdos_cs3`). | 124 lines |
 | [`serial_comm.inc`](../serial_comm.inc) | Serial Framing & Abort | [`str_can_abort_seq`](../serial_comm.inc#L7) (10x CAN + 10x BS), [`tx_can_sequence`](../serial_comm.inc#L18), [`tx_raw_string`](../serial_comm.inc#L28), [`comm_rx_char_filtered`](../serial_comm.inc#L42) (keyboard abort & timer). | 145 lines |
 | [`crc.inc`](../crc.inc) | CRC-16 & CRC-32 Engines | [`crc32_poly_rev`](../crc.inc#L8) (reversed IEEE 802.3 0xEDB88320), [`crc32_final_xor`](../crc.inc#L9) (0xDEBB20E3 residue), [`crc32_update`](../crc.inc#L18) (table lookup), [`build_crc32_table`](../crc.inc#L66) (dynamic 1KB RAM table generator), [`crc16`](../crc.inc#L143) (16-bit CCITT polynomial 1021h accumulator). | 260 lines |
+| [`num_ascii.inc`](../num_ascii.inc) | 8-Bit Decimal Formatter | [`byte_to_dec_ascii`](../num_ascii.inc#L19), [`byte_to_dec_ascii_no_suppress`](../num_ascii.inc#L30) (aliased as `byte_to_signed_dec`), [`div_mod_8`](../num_ascii.inc#L52), [`store_ascii_char`](../num_ascii.inc#L78). | 161 lines |
+| [`cmdline.inc`](../cmdline.inc) | Command Tail Parser | [`tokenize_cmdline`](../cmdline.inc#L18), [`skip_spaces`](../cmdline.inc#L74), [`check_delimiter`](../cmdline.inc#L90). | 185 lines |
+| [`memset.inc`](../memset.inc) | Memory Block Fill | [`memset_buffer`](../memset.inc#L15) (aliased as `fill_bhla`), [`memset_loop`](../memset.inc#L28) (aliased as `fill_1`). | 94 lines |
+| [`strlen.inc`](../strlen.inc) | String Length & Uppercase | [`calc_strlen`](../strlen.inc#L16) (calculates length and normalizes string to uppercase in place). | 54 lines |
+| [`to_upper.inc`](../to_upper.inc) | ASCII Character Case | [`to_upper`](../to_upper.inc#L15) (converts `'a'..'z'` to `'A'..'Z'`). | 25 lines |
+| [`aux_io.inc`](../aux_io.inc) | Serial Auxiliary Character I/O | [`aux_tx_char`](../aux_io.inc#L18) (BDOS 4), [`aux_tx_ready`](../aux_io.inc#L29) (BDOS 8), [`rx_byte_timeout`](../aux_io.inc#L40) (countdown retry), [`delay`](../aux_io.inc#L64) (aliased as `comm_tx_char_raw`). | 142 lines |
+| [`scb_sysvar.inc`](../scb_sysvar.inc) | CP/M 3 SCB Error Interception | [`cpm3_sysvar_hook`](../scb_sysvar.inc#L18), [`cpm3_sysvar_unhook`](../scb_sysvar.inc#L67), SCB parameter blocks (`scb_pb_offset`, `saved_scb_vector1`, `saved_scb_vector2`, `scb_hook_vector1`, `scb_hook_vector2`, `scb_ptr_sysvar`). | 186 lines |
+| [`drive_user.inc`](../drive_user.inc) | Active Drive & User Area | [`get_init_drive_user`](../drive_user.inc#L17) (reads Page 0 IOBYTE), [`set_drive_user`](../drive_user.inc#L42) (selects BDOS 14 drive and BDOS 32 user). | 100 lines |
 
 ### 7.3 Quantitative Refactoring Impact
-- **Total Duplicate Assembly Eliminated**: **1,501 lines** removed across `rz.asm` and `sz.asm`.
-- **Modular Maintainability**: Bug fixes and optimizations in shared math, CRC computation, string formatting, or OS wrappers propagate simultaneously to both programs without duplicate editing.
+- **Total Duplicate Assembly Eliminated**: **2,448 lines** removed across `rz.asm` and `sz.asm`.
+- **Modular Maintainability**: 17 fine-grained include modules encapsulating single responsibilities (OS calls, manifests, math, CRC, strings, command tail parsing, memory operations, serial driver, SCB traps, drive/user management). Bug fixes and enhancements propagate simultaneously to both programs without duplicate editing.
 - **Binary Parity Guarantee**: All binaries reassemble 100% bit-for-bit identical to the original 1992 executables (`make clean && make test`).
 
 ### 7.4 Symbolic Data Structures & Human Comprehension Enhancements

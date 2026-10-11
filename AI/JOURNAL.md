@@ -531,4 +531,47 @@ Building on the modular include library, Phase 20 completed the factorization of
    - Executed `make clean && make test`.
    - Both `rz.com` and `sz.com` remain **100% byte-for-byte identical** to the 1992 reference binaries.
 
+---
+
+## Phase 21: Deep Include Factorization & System Primitives (Track 1 Continuation)
+
+Following the user's decision to continue Track 1 (maximizing modular include extraction under strict 100% byte-for-byte binary parity), Phase 21 identified and factored out all remaining identical subroutines across `rz.asm` and `sz.asm`:
+
+1. **Extraction of 8-Bit Decimal Formatter (`AI/num_ascii.inc`)**:
+   - Subroutines: `byte_to_dec_ascii`, `byte_to_dec_ascii_no_suppress` (aliased as `byte_to_signed_dec`), `byte_to_dec_calc`, `div_mod_8`, `store_ascii_char`, `store_ascii_char_adv`.
+   - Implements repeated-subtraction division by 100 and 10 with leading zero space suppression.
+   - **Eliminated 161 lines of duplication**.
+
+2. **Extraction of Command Tail Parser & Memory Fill (`AI/cmdline.inc` & `AI/memset.inc`)**:
+   - `AI/cmdline.inc`: `tokenize_cmdline`, `skip_spaces`, `check_delimiter` for parsing CP/M 0080h argument tails into pointer tables.
+   - `AI/memset.inc`: `memset_buffer` (aliased as `fill_bhla`) and `memset_loop` (aliased as `fill_1`) for standard `djnz` memory filling.
+   - **Eliminated 279 lines of duplication**.
+
+3. **Extraction of String Length & Uppercase Normalization (`AI/strlen.inc` & `AI/to_upper.inc`)**:
+   - `AI/strlen.inc`: `calc_strlen` in-place uppercase converter and string length finder.
+   - `AI/to_upper.inc`: `to_upper` 7-bit ASCII lowercase to uppercase converter (`cp 'a'`, `cp 'z'+1`, `and 5Fh`).
+   - Kept modular to accommodate differing linker topological orderings.
+   - **Eliminated 79 lines of duplication**.
+
+4. **Extraction of Auxiliary Serial Character Driver (`AI/aux_io.inc`)**:
+   - Subroutines: `aux_tx_char` (BDOS 4), `aux_tx_ready` (BDOS 8), `rx_byte_timeout` (retry loop with timeout countdown), and `delay` (aliased as `comm_tx_char_raw` 4x256x13 T-state delay slice).
+   - Resolved naming discrepancy where `comm_tx_char_raw` in `sz` was an exact clone of `delay` in `rz`.
+   - **Eliminated 142 lines of duplication**.
+
+5. **Extraction of CP/M 3 SCB Error Vector Interception (`AI/scb_sysvar.inc`)**:
+   - Subroutines: `cpm3_sysvar_hook` and `cpm3_sysvar_unhook`.
+   - Embedded data structures: SCB parameter blocks (`scb_pb_offset`, `saved_scb_vector1`, `saved_scb_vector2`, `scb_hook_vector1`, `scb_hook_vector2`, `scb_ptr_sysvar`).
+   - Replaced hardcoded addresses in `sz` with symbolic labels referencing the embedded parameter block.
+   - **Eliminated 186 lines of duplication**.
+
+6. **Extraction of Drive & User Number Management (`AI/drive_user.inc`)**:
+   - Subroutines: `get_init_drive_user` (reads initial user/drive from Page 0 IOBYTE 0004h, saves to BSS, and patches exit restore operands) and `set_drive_user` (selects BDOS 14 disk drive and BDOS 32 user area).
+   - **Eliminated 100 lines of duplication**.
+
+7. **Overall Impact**:
+   - **17 total modular include files active**.
+   - **2,448 total lines of duplicate assembly eliminated** from the monolithic sources.
+   - **100% exact bit-for-bit parity maintained**: `make clean && make test` passes with zero drift against original 1992 reference binaries.
+
+
 
