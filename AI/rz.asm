@@ -740,24 +740,9 @@ aux_fifo_push:
 		ret				; Return
 
 ;============================================================================
-; Function : dispatch_table_jump
-; Purpose  : Dispatches execution to a jump vector found after a CPIR search.
-; Inputs   : HL = End of character search table (after CPIR match)
-;            BC = Remaining count returned by CPIR
-; Outputs  : Jumps directly to target handler subroutine via JP (HL)
-; Modifies : BC, HL
-; Notes    : Calculates offset: HL + BC skips past characters to vector table,
-;            then SLA C multiplies the index by 2 to index the 16-bit word address (.dw).
+; Table-Driven Indirect Dispatch Helper (dispatch.inc)
 ;============================================================================
-dispatch_table_jump:
-		add	hl, bc			; Advance HL past remaining switch characters
-		sla	c			; Multiply remaining index count C by 2 (word offset)
-		add	hl, bc			; HL = address of target 16-bit jump vector (.dw)
-		ld	c, (hl)			; Load low byte of handler routine address
-		inc	hl
-		ld	h, (hl)			; Load high byte of handler routine address
-		ld	l, c			; HL = target handler address
-		jp	(hl)			; Jump indirectly to option switch handler
+#include "dispatch.inc"
 
 ;----------------------------------------------------------------------------
 ;		S u b r	o u t i	n e
@@ -2930,66 +2915,10 @@ tx_hex_byte:
 
 ;----------------------------------------------------------------------------
 
-tx_hex_byte_loop_1:
-; SMC WRITER: Patches immediate operand of ld a, imm at tx_hex_byte_call_2 (patch_tx_char_byte)
-		ld	(patch_tx_char_byte), a	; Save character into SMC operand
-      		ld	bc, +(hex_byte_jump_vector-hex_byte_char_table) ; Table entry count
-      		ld	hl, hex_byte_char_table	; HL points to escape character lookup table
-      		cpir				; Search character in escape table
-      		jp	z, dispatch_table_jump	; If match found, jump to handler
-		and	60h			; Check if control character
-      		jr	nz, tx_hex_byte_call_2	; If printable character, transmit directly
-      		ld	a, (esc_ctrl_chars_flag) ; Check if escaping control characters active
-      		or	a
-      		jr	z, tx_hex_byte_call_2	; If escaping not active, transmit directly
-tx_hex_byte_call_1:
-; SMC WRITER: Modifies bit 6 of immediate operand at patch_tx_char_byte
-		ld	hl, patch_tx_char_byte	; Set bit 6 to convert control char to printable
-      		set	6, (hl)
-      		ld	a, 18h			; Send ZDLE escape character (18h) prefix first
-      		call	comm_tx_char_wait
-; SMC TARGET: Patched by ld (patch_tx_char_byte), a and set 6, (hl) above
-patch_tx_char_byte:	.equ	$+1		; SMC: immediate byte operand holding escaped character
-tx_hex_byte_call_2:
-		ld	a, 0			; Load escaped or raw character
-comm_tx_char_wait:
-; SMC WRITER: Patches immediate operand of ld a, imm at line below (patch_tx_wait_flag)
-		ld	(patch_tx_wait_flag), a	; Save character to transmit
-comm_tx_char_w_call_1:
-		call	rx_buffer_poll		; Poll receive buffer while waiting for UART ready
-		call	aux_tx_ready		; Check if AUX port output is ready for next byte
-		jr	z, comm_tx_char_w_call_1 ; Loop until AUX transmitter ready
-; SMC TARGET: Patched by ld (patch_tx_wait_flag), a above
-patch_tx_wait_flag:	.equ	$+1		; SMC: immediate byte operand holding character to transmit
-		ld	a, 0			; Load character
-      		jp	aux_tx_char		; Transmit character via BDOS AUX write and return
-
-comm_tx_char_w_br_1:
-		ld	a, (patch_tx_wait_flag)	; Load character
-		and	7Fh			; Mask 7 bits
-		cp	40h			; Check range
-		jr	nz, tx_hex_byte_call_2	; Transmit directly
-		jr	tx_hex_byte_call_1	; Escape character
-
-hex_byte_char_table:	.db	18h
-		.db	0Dh
-		.db	8Dh
-		.db	10h
-		.db	90h
-		.db	11h
-		.db	91h
-		.db	13h
-		.db	93h
-
-hex_byte_jump_vector:	.dw	tx_hex_byte_call_1
-		.dw	tx_hex_byte_call_1
-		.dw	tx_hex_byte_call_1
-		.dw	tx_hex_byte_call_1
-		.dw	tx_hex_byte_call_1
-		.dw	tx_hex_byte_call_1
-		.dw	comm_tx_char_w_br_1
-		.dw	comm_tx_char_w_br_1
-		.dw	tx_hex_byte_call_1
+;============================================================================
+; ZMODEM Character Escape & Serial Transmission Engine (tx_zdle.inc)
+;============================================================================
+#include "tx_zdle.inc"
 
 ;----------------------------------------------------------------------------
 ;		S u b r	o u t i	n e
