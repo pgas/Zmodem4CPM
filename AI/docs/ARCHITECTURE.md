@@ -276,10 +276,12 @@ Because `rz` and `sz` present different module sequences, a single monolithic `c
 | [`aux_io.inc`](../aux_io.inc) | Serial Auxiliary Character I/O | [`aux_tx_char`](../aux_io.inc#L18) (BDOS 4), [`aux_tx_ready`](../aux_io.inc#L29) (BDOS 8), [`rx_byte_timeout`](../aux_io.inc#L40) (countdown retry), [`delay`](../aux_io.inc#L64) (aliased as `comm_tx_char_raw`). | 142 lines |
 | [`scb_sysvar.inc`](../scb_sysvar.inc) | CP/M 3 SCB Error Interception | [`cpm3_sysvar_hook`](../scb_sysvar.inc#L18), [`cpm3_sysvar_unhook`](../scb_sysvar.inc#L67), SCB parameter blocks (`scb_pb_offset`, `saved_scb_vector1`, `saved_scb_vector2`, `scb_hook_vector1`, `scb_hook_vector2`, `scb_ptr_sysvar`). | 186 lines |
 | [`drive_user.inc`](../drive_user.inc) | Active Drive & User Area | [`get_init_drive_user`](../drive_user.inc#L17) (reads Page 0 IOBYTE), [`set_drive_user`](../drive_user.inc#L42) (selects BDOS 14 drive and BDOS 32 user). | 100 lines |
+| [`dispatch.inc`](../dispatch.inc) | Indirect Jump Dispatcher | [`dispatch_table_jump`](../dispatch.inc#L16) (advances HL past switch characters, doubles index via `SLA C`, resolves 16-bit word address, branches via `JP (HL)`). | 18 lines |
+| [`tx_zdle.inc`](../tx_zdle.inc) | ZMODEM Escape & Serial TX | [`tx_zdle_escaped_char`](../tx_zdle.inc#L14) (control char filter), [`tx_zdle_escape_prefix`](../tx_zdle.inc#L27), [`comm_tx_char_wait`](../tx_zdle.inc#L39), [`comm_tx_char_w_esc_test`](../tx_zdle.inc#L52), [`hex_byte_char_table`](../tx_zdle.inc#L62), [`hex_byte_jump_vector`](../tx_zdle.inc#L74). | 144 lines |
 
 ### 7.3 Quantitative Refactoring Impact
-- **Total Duplicate Assembly Eliminated**: **2,448 lines** removed across `rz.asm` and `sz.asm`.
-- **Modular Maintainability**: 17 fine-grained include modules encapsulating single responsibilities (OS calls, manifests, math, CRC, strings, command tail parsing, memory operations, serial driver, SCB traps, drive/user management). Bug fixes and enhancements propagate simultaneously to both programs without duplicate editing.
+- **Total Duplicate Assembly Eliminated**: **2,610 lines** removed across `rz.asm` and `sz.asm`.
+- **Modular Maintainability**: 19 fine-grained include modules encapsulating single responsibilities (OS calls, manifests, math, CRC, strings, command tail parsing, memory operations, serial driver, SCB traps, drive/user management, table dispatch, ZDLE escape engine). Bug fixes and enhancements propagate simultaneously to both programs without duplicate editing.
 - **Binary Parity Guarantee**: All binaries reassemble 100% bit-for-bit identical to the original 1992 executables (`make clean && make test`).
 
 ### 7.4 Symbolic Data Structures & Human Comprehension Enhancements

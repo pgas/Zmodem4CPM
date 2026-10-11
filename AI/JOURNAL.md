@@ -573,5 +573,50 @@ Following the user's decision to continue Track 1 (maximizing modular include ex
    - **2,448 total lines of duplicate assembly eliminated** from the monolithic sources.
    - **100% exact bit-for-bit parity maintained**: `make clean && make test` passes with zero drift against original 1992 reference binaries.
 
+---
+
+## Phase 22: Transmission Engine Deduplication & Complete Symbolization of Legacy Equates/Buffers
+
+### Objectives
+1. Extract shared ZMODEM escape and serial transmission engine (`AI/tx_zdle.inc`).
+2. Extract CPIR table-driven indirect jump dispatcher (`AI/dispatch.inc`).
+3. Symbolize all remaining hardcoded address equates in `sz.asm` (`file_read_byte_buffered`, `checksum8_val`, `cmd_window_param`, `0852h`, `str_transfer_announce`).
+4. Eliminate all remaining legacy auto-generated disassembler labels in `rz.asm` (`text493h`, `text495h`, `text4F2h`, `text51Eh`, `text55Ah`, `text569h`) and `sz.asm` (`unk_0_1F1F`, `unk_0_1F1F_step_1`).
+5. Ensure 100% byte-for-byte binary parity throughout.
+
+### Accomplishments
+
+1. **Extraction of CPIR Indirect Vector Dispatcher (`AI/dispatch.inc`)**:
+   - Subroutine: `dispatch_table_jump` (advances HL past remaining switch characters, doubles index via `SLA C`, resolves 16-bit word address, and branches indirectly via `JP (HL)`).
+   - Located immediately preceding `math32.inc` in both files.
+   - **Eliminated 18 lines of duplication**.
+
+2. **Extraction of ZMODEM Character Escape & Transmission Engine (`AI/tx_zdle.inc`)**:
+   - Subroutines & Data: `tx_zdle_escaped_char` (aliased as `tx_hex_byte_loop_1`), `tx_zdle_escape_prefix` (aliased as `tx_hex_byte_call_1`), `patch_tx_char_byte`, `tx_char_direct` (aliased as `tx_hex_byte_call_2`), `comm_tx_char_wait`, `comm_tx_char_w_poll` (aliased as `comm_tx_char_w_call_1`), `patch_tx_wait_flag`, `comm_tx_char_w_esc_test` (aliased as `comm_tx_char_w_br_1`), `hex_byte_char_table`, and `hex_byte_jump_vector`.
+   - Replaced duplicate byte sequences across `rz.asm` and `sz.asm`.
+   - **Eliminated 144 lines of duplication**.
+
+3. **Symbolization of Hardcoded Equates & Buffers in `sz.asm`**:
+   - Replaced `file_read_byte_buffered .equ 1BF9h` with direct invocations of `cpm_ch1_read_buffered_byte`.
+   - Replaced `checksum8_val .equ 0789h` with `(checksum8_acc+1)`.
+   - Labeled `cmd_window_param: .db 20h` inline at 0853h and eliminated the equate.
+   - Replaced `ld (0852h), a` with `ld (protocol_mode), a`.
+   - Symbolized the file transfer announcement message buffer (`str_transfer_announce`, `str_transfer_drive`, `str_transfer_user`, `str_transfer_colon`, `str_transfer_filename`, `str_transfer_filesize`) replacing hardcoded pointer literals (`4E7h`, `4EAh`, `4EDh`, `4FCh`).
+   - Removed legacy `unk_0_1F1F` and `unk_0_1F1F_step_1` in `is_alpha`.
+
+4. **Complete Renaming of Remaining `textXXX` Labels in `rz.asm`**:
+   - `text493h` -> `str_error_count_msg`
+   - `text495h` -> `str_err_count_buf`
+   - `text4F2h` -> `str_recv_announce_hdr`
+   - `text51Eh` -> `str_stats_cr`
+   - `text55Ah` -> `str_file_skipped`
+   - `text569h` -> `str_cant_open_file`
+   - Replaced all legacy `textXXXh` occurrences with descriptive semantic symbols. Zero disassembler auto-labels remaining in the entire codebase (`loc_`, `sub_`, `byte_`, `word_`, `unk_`, `textXXXh`).
+
+5. **Overall Impact**:
+   - **19 total modular include files active** in `AI/`.
+   - **2,610 total lines of duplicate assembly eliminated** from the monolithic sources.
+   - **100% exact bit-for-bit parity maintained**: `make clean && make test` passes with zero drift against original 1992 reference binaries.
+
 
 

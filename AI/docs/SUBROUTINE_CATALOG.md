@@ -74,6 +74,7 @@ This catalog indexes all subroutines across [`rz.asm`](../rz.asm) (receiver) and
 | `sub_1289`| `rx_frame_dispatcher` | Dispatch incoming frame by frame type to specific protocol handlers | All registers |
 | `sub_13BA`| `tx_hex_header` | Format and transmit frame header as ASCII hexadecimal (`ZHEX`) | All registers |
 | `sub_1418`| `tx_hex_byte` | Output binary byte as two uppercase ASCII hexadecimal characters | A, BC, HL |
+| `sub_142F`| `tx_zdle_escaped_char` | Transmit byte over serial AUX port with ZDLE escape translation (`tx_zdle.inc`) | A, BC, HL |
 | `sub_1492`| `parse_cpm_filespec` | Parse filename string into standard 36-byte CP/M FCB structure | All registers |
 | `sub_14A7`| `parse_fcb_drive_user` | Extract explicit drive letter and user area number into FCB | All registers |
 | `sub_1522`| `validate_fcb_char` | Validate legal character for CP/M filename compatibility | A, F |
@@ -149,6 +150,7 @@ This catalog indexes all subroutines across [`rz.asm`](../rz.asm) (receiver) and
 | `sub_0_118C`| `tx_bin_header` | Transmit binary frame header (`ZBIN` with CRC-16 or `ZBIN32` with CRC-32)| All registers |
 | `sub_0_1204`| `tx_hex_header` | Transmit hexadecimal ASCII frame header (`ZHEX`) with CRC-16 | All registers |
 | `sub_0_1262`| `tx_hex_byte` | Output byte as two uppercase ASCII hexadecimal characters | A, BC, HL |
+| `sub_0_128A`| `tx_zdle_escaped_char` | Transmit byte over serial AUX port with ZDLE escape translation (`tx_zdle.inc`) | A, BC, HL |
 | `sub_0_12DC`| `reset_crc_checksum` | Reset CRC accumulator state variables | A, HL |
 | `sub_0_12EB`| `rx_header_search` | Search serial stream for ZPAD/ZDLE frame start sequences | All registers |
 | `sub_0_15A8`| `tx_can_sequence` | Transmit 8x CAN (`0x18`) sequence with backspaces to abort transfer | A, HL |

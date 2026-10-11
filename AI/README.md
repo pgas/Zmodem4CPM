@@ -84,11 +84,12 @@ AI/
 
 ## 4. Key Human-Engineering Refactorings
 
-1. **Modular Include Architecture (17 Shared Libraries)**:
-   - Factored out 2,448 lines of duplicate assembly into 17 domain-specific modules:
+1. **Modular Include Architecture (19 Shared Libraries)**:
+   - Factored out 2,610 lines of duplicate assembly into 19 domain-specific modules:
      - System & Manifests: [`cpm3.inc`](cpm3.inc), [`zmodem.inc`](zmodem.inc)
      - Mathematics & Verification: [`math32.inc`](math32.inc), [`crc.inc`](crc.inc)
-     - Serial & Console I/O: [`aux_io.inc`](aux_io.inc), [`serial_comm.inc`](serial_comm.inc), [`bdos_con.inc`](bdos_con.inc)
+     - Serial & Console I/O: [`aux_io.inc`](aux_io.inc), [`serial_comm.inc`](serial_comm.inc), [`bdos_con.inc`](bdos_con.inc), [`tx_zdle.inc`](tx_zdle.inc)
+     - Control Flow & Dispatch: [`dispatch.inc`](dispatch.inc)
      - Formatting & Strings: [`num_ascii.inc`](num_ascii.inc), [`strlen.inc`](strlen.inc), [`to_upper.inc`](to_upper.inc), [`memset.inc`](memset.inc), [`cmdline.inc`](cmdline.inc)
      - CP/M System Integration: [`fcb_format.inc`](fcb_format.inc), [`fcb_init.inc`](fcb_init.inc), [`z3env.inc`](z3env.inc), [`scb_sysvar.inc`](scb_sysvar.inc), [`drive_user.inc`](drive_user.inc)
    - Eliminates duplicate maintenance while preserving 100% byte-for-byte binary parity.
@@ -106,7 +107,7 @@ AI/
      - In-Memory Shell Sort and cycle permutation engine for wildcard directory scanning.
      - **Result**: Exactly **100% of executable code** is disassembled and symbolic across both programs. Zero raw `.db` machine-code byte blocks remain in executable areas.
 4. **Symbolic Addressing & Variable Modernization**:
-   - Replaced all legacy `byte_XXXX` and `word_XXXX` variables in `rz.asm` and `sz.asm` with semantic symbols (`esc_ctrl_chars_flag`, `rx_hdr_crc_format`, `remote_proto_type`, `file_mgmt_option`, `rx_file_info_ptr`, `rx_filename_ptr`, `active_packet_len`, `cpm_partial_record_bytes`, `cpm_last_record_index`, `cpm_record_count`, `num_to_ascii_buf`, `fcb_record_count_ext`, `file_pos_curr`, `tx_buf_mask`, `remote_rx_buf_size`, `tx_subpacket_size`, `cpm_ch1_control_block`, `cpm_ch2_control_block`, `cpm_active_buf_ptr`, `sort_table_base`, `sort_gap`, `sort_index`).
+   - Replaced all legacy `byte_XXXX`, `word_XXXX`, `textXXXh`, and hardcoded literal equates in `rz.asm` and `sz.asm` with semantic symbols (`esc_ctrl_chars_flag`, `rx_hdr_crc_format`, `remote_proto_type`, `file_mgmt_option`, `rx_file_info_ptr`, `rx_filename_ptr`, `active_packet_len`, `cpm_partial_record_bytes`, `cpm_last_record_index`, `cpm_record_count`, `num_to_ascii_buf`, `fcb_record_count_ext`, `file_pos_curr`, `tx_buf_mask`, `remote_rx_buf_size`, `tx_subpacket_size`, `cpm_ch1_control_block`, `cpm_ch2_control_block`, `cpm_active_buf_ptr`, `sort_table_base`, `sort_gap`, `sort_index`, `str_transfer_announce`).
 5. **Clean Semantic Subroutine Names & Interface Contracts**:
    - All 213 subroutines feature descriptive names and standard contract banners documenting Function, Purpose, Inputs, Outputs, and Modifies.
 6. **Deep Line-by-Line Inline Commentary & Algorithm Diagrams**:
@@ -118,10 +119,10 @@ AI/
 
 | Source File | Total Lines | Executable/Data Lines | Commented Lines | Documentation Coverage | Obsolete `loc_`/`sub_` Labels |
 |---|---|---|---|---|---|
-| [`rz.asm`](rz.asm) | 3,557 | 2,420 | 1,840 | **76.0%** | **0** (100% Resolved) |
-| [`sz.asm`](sz.asm) | 5,710 | 3,685 | 3,020 | **82.0%** | **0** (100% Resolved) |
-| Includes (`*.inc`) | 1,539 | 1,020 | 850 | **83.3%** | **0** (100% Resolved) |
-| **Combined Total** | **10,806** | **7,125** | **5,710** | **80.1%** | **0** (100% Resolved) |
+| [`rz.asm`](rz.asm) | 3,486 | 2,360 | 1,810 | **76.7%** | **0** (100% Resolved) |
+| [`sz.asm`](sz.asm) | 5,606 | 3,610 | 2,980 | **82.5%** | **0** (100% Resolved) |
+| Includes (`*.inc`) | 1,645 | 1,110 | 920 | **82.9%** | **0** (100% Resolved) |
+| **Combined Total** | **10,737** | **7,080** | **5,710** | **80.6%** | **0** (100% Resolved) |
 
 ---
 
