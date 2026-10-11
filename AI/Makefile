@@ -5,7 +5,7 @@ ORIGINAL_DIR ?= ../Archive/zmodem-cpm-binaries
 
 all: rz.com sz.com test
 
-INCLUDES = aux_io.inc bdos_con.inc cmdline.inc cpm3.inc crc.inc dispatch.inc drive_user.inc fcb_format.inc fcb_init.inc math32.inc memset.inc num_ascii.inc scb_sysvar.inc serial_comm.inc strlen.inc to_upper.inc tx_zdle.inc z3env.inc zmodem.inc
+INCLUDES = aux_io.inc bdos_con.inc cmdline.inc cpm3.inc crc.inc dispatch.inc drive_user.inc fcb_format.inc fcb_init.inc filespec.inc math32.inc memset.inc num_ascii.inc scb_sysvar.inc serial_comm.inc strlen.inc to_upper.inc tx_zdle.inc z3env.inc zmodem.inc
 
 rz.com: rz.asm $(INCLUDES)
 	@echo "Assembling rz.asm..."
