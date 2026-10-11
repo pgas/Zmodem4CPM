@@ -240,3 +240,36 @@ The routine synthesizes a return address on the stack pointing to `file_stream_e
 ### 6.4 CPIR Reverse Offset Jump Tables
 In `dispatch_table_jump`:
 The code searches a byte table using `CPIR`. Because `CPIR` decrements `BC` as it scans, the matching vector offset is derived from the remaining count. As a result, the jump vector table is intentionally arranged in reverse order of the character entries.
+
+---
+
+## 7. Modular Source Architecture & Shared Include Library
+
+To eliminate code duplication while strictly maintaining **100% byte-for-byte binary parity** against the 1992 reference binaries, the codebase utilizes a modular include architecture.
+
+### 7.1 The Topological Linker Ordering Dilemma
+In vintage CP/M development, programs were assembled as relocatable object files (`.REL`) and linked with a tool like Microsoft `L80` or Digital Research `LINK.COM`. Because `LINK` emits code in the order modules are passed on the command line:
+- In `rz.com`, receiver routines (`rx_hex_header`) were linked *before* transmitter routines (`tx_hex_header`).
+- In `sz.com`, transmitter routines (`tx_hex_header`) were linked *before* receiver routines (`rx_hex_header`).
+- In `rz.com`, `init_crc_acc` was linked before `calc_buffer_mask`, whereas in `sz.com`, `calc_buffer_mask` was linked before `init_crc_acc`.
+
+Because `rz` and `sz` present different module sequences, a single monolithic `common.asm` cannot be included without disrupting the memory layout of at least one binary. The solution is **domain-specific fine-grained include modules** `#include`d at the exact linear positions where each module was originally linked.
+
+### 7.2 Shared Module Catalog
+
+| Include File | Functional Domain | Subroutines & Manifests Contained | Lines Deduplicated |
+|---|---|---|---|
+| [`cpm3.inc`](../cpm3.inc) | Operating System Interface | CP/M 3 BDOS system call equates (`1`..`49`), zero-page vectors (`0000h`..`0080h`), and SCB offsets. | Shared Equates |
+| [`zmodem.inc`](../zmodem.inc) | Protocol Specifications | Zmodem framing manifests (`ZPAD`, `ZDLE`, `ZHEX`, `ZBIN`, `ZBIN32`), frame types (`ZRINIT`, `ZFILE`, `ZDATA`, `ZEOF`, `ZFIN`), and capability masks. | Shared Equates |
+| [`math32.inc`](../math32.inc) | 32-Bit Arithmetic & Memory | 10 pure register routines: [`clear_4bytes`](../math32.inc#L15), [`copy_4bytes`](../math32.inc#L33), [`cmp_pos32`](../math32.inc#L52), [`cmp32`](../math32.inc#L79), [`cmp_4bytes_eq`](../math32.inc#L104), [`add32`](../math32.inc#L129), [`sub32`](../math32.inc#L162), [`inc32`](../math32.inc#L198), [`dec32_zero`](../math32.inc#L225) / [`dec32`](../math32.inc#L232), [`and32`](../math32.inc#L256). | 537 lines |
+| [`fcb_format.inc`](../fcb_format.inc) | FCB String Formatting | [`format_fcb_name`](../fcb_format.inc#L14) (formats 8.3 `d:filename.ext` with space suppression) and [`check_fcb_char`](../fcb_format.inc#L38) (attribute bit 7 filter). | 92 lines |
+| [`z3env.inc`](../z3env.inc) | Z-System Descriptor | [`get_fcb_ext_ptr`](../z3env.inc#L14), [`get_fcb_name_ptr`](../z3env.inc#L27), [`get_fcb_drive_ptr`](../z3env.inc#L40), [`get_fcb_record_ptr`](../z3env.inc#L53), [`fcb_field_get_offset`](../z3env.inc#L64), [`fcb_rec_get_offset`](../z3env.inc#L78), [`init_z3env_descriptor`](../z3env.inc#L96). | 195 lines |
+| [`fcb_init.inc`](../fcb_init.inc) | FCB Initialization | [`ascii_to_digit`](../fcb_init.inc#L14) (digit conversion), [`init_empty_fcb`](../fcb_init.inc#L28), [`init_fcb_spaces`](../fcb_init.inc#L42) (space padding), [`memset_de_spaces`](../fcb_init.inc#L66) (`djnz` memory fill). | 148 lines |
+| [`bdos_con.inc`](../bdos_con.inc) | Console & BDOS Wrappers | [`bdos_con_read`](../bdos_con.inc#L14), [`bdos_con_stat`](../bdos_con.inc#L24), [`bdos_con_write_char`](../bdos_con.inc#L34) (aliased as `bdos_s2`), [`bdos_sys_call`](../bdos_con.inc#L49) (aliased as `bdos_cs3`). | 124 lines |
+| [`serial_comm.inc`](../serial_comm.inc) | Serial Framing & Abort | [`str_can_abort_seq`](../serial_comm.inc#L7) (10x CAN + 10x BS), [`tx_can_sequence`](../serial_comm.inc#L18), [`tx_raw_string`](../serial_comm.inc#L28), [`comm_rx_char_filtered`](../serial_comm.inc#L42) (keyboard abort & timer). | 145 lines |
+
+### 7.3 Quantitative Refactoring Impact
+- **Total Duplicate Assembly Eliminated**: **1,241 lines** removed from `rz.asm` and `sz.asm`.
+- **Modular Maintainability**: Bug fixes and optimizations in shared math, string formatting, or OS wrappers propagate simultaneously to both programs without duplicate editing.
+- **Binary Parity Guarantee**: All binaries reassemble 100% bit-for-bit identical to the original 1992 executables (`make clean && make test`).
+

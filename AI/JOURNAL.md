@@ -473,3 +473,24 @@ Following 100% deobfuscation and line-by-line annotation of `rz.asm` and `sz.asm
    - CP/M 3 SCB error vector hooking (`F_SCB`) and dynamic TPA heap management.
    - Test-driven reverse-engineering pipeline with bit-for-bit regression testing.
 
+---
+
+## Phase 19: Modular Include Library Factorization (Approach 1)
+
+To eliminate code duplication while strictly preserving 100% byte-for-byte binary identity against the 1992 executables, the codebase was refactored into a fine-grained modular include architecture:
+
+1. **Topological Order Inversions Resolved**:
+   Recognized that the 1992 linker processed modules in slightly different orders in `rz` vs `sz` (e.g. Rx headers precede Tx headers in `rz`, whereas Tx headers precede Rx headers in `sz`). Rather than forcing a single monolithic file, domain-specific modules were created and `#include`d at their original link positions.
+
+2. **Extracted Shared Modules**:
+   - `AI/math32.inc`: 10 pure register 32-bit arithmetic routines (`clear_4bytes`, `copy_4bytes`, `cmp_pos32`, `cmp32`, `cmp_4bytes_eq`, `add32`, `sub32`, `inc32`, `dec32_zero`/`dec32`, `and32`).
+   - `AI/fcb_format.inc`: CP/M FCB 8.3 filename string formatting (`format_fcb_name`, `check_fcb_char`).
+   - `AI/z3env.inc`: ZCPR3 / Z-System descriptor helpers (`get_fcb_ext_ptr`, `get_fcb_name_ptr`, `get_fcb_drive_ptr`, `get_fcb_record_ptr`, `fcb_field_get_offset`, `fcb_rec_get_offset`, `init_z3env_descriptor`).
+   - `AI/fcb_init.inc`: FCB initialization and digit validation (`ascii_to_digit`, `init_empty_fcb`, `init_fcb_spaces`, `memset_de_spaces`).
+   - `AI/bdos_con.inc`: Console read/stat and generic BDOS dispatcher (`bdos_con_read`, `bdos_con_stat`, `bdos_con_write_char`/`bdos_s2`, `bdos_sys_call`/`bdos_cs3`).
+   - `AI/serial_comm.inc`: Abort sequence, string sender, and filtered character receiver (`str_can_abort_seq`, `tx_can_sequence`, `tx_raw_string`, `comm_rx_char_filtered`).
+
+3. **Metrics & Binary Verification**:
+   - Total duplicate lines eliminated: **1,241 lines**.
+   - `make clean && make test` passes with zero binary drift (100% bit-for-bit identity).
+
