@@ -3804,56 +3804,10 @@ bdos_search_first:
 ;		S u b r	o u t i	n e
 
 ;============================================================================
-; Function : bdos_con_read
-; Purpose  : Read character from console directly (BDOS 1 C_READ)
-; Inputs   : None
-; Outputs  : A = console character
-; Modifies : A
+; CP/M BDOS Console and Dispatcher Library (bdos_con.inc)
 ;============================================================================
-bdos_con_read:
-		ld	a, C_READ		; BDOS Function 1: Console input
-		jp	bdos_cs3		; Call BDOS and return
+#include "bdos_con.inc"
 
-;----------------------------------------------------------------------------
-;		S u b r	o u t i	n e
-
-;============================================================================
-; Function : bdos_con_stat
-; Purpose  : Check console input status (BDOS 11 C_STAT)
-; Inputs   : None
-; Outputs  : A = 0 if no key ready, 0FFh if key available
-; Modifies : A
-;============================================================================
-bdos_con_stat:
-		ld	a, C_STAT		; BDOS Function 11: Console status
-		jp	bdos_cs3		; Call BDOS and return
-
-;----------------------------------------------------------------------------
-;		S u b r	o u t i	n e
-
-bdos_s2:
-		push	de			; Preserve DE
-		push	bc			; Preserve BC
-		call	bdos			; Call BDOS function
-		pop	bc			; Restore BC
-		pop	de			; Restore DE
-		or	a			; Test return code in A
-		ret				; Return
-
-;----------------------------------------------------------------------------
-;		S u b r	o u t i	n e
-
-bdos_cs3:
-		push	hl			; Preserve HL
-		push	de			; Preserve DE
-		push	bc			; Preserve BC
-		ld	c, a			; C = BDOS function number
-		call	bdos			; Call BDOS
-		or	a			; Test return code in A
-		pop	bc			; Restore BC
-		pop	de			; Restore DE
-		pop	hl			; Restore HL
-		ret				; Return
 
 ;----------------------------------------------------------------------------
 ;		S u b r	o u t i	n e

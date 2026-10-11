@@ -5799,82 +5799,10 @@ cpm_restore_us_step_1:				; CODE XREF: cpm_restore_user_drive+E (jump)
 ;		S u b r	o u t i	n e
 
 ;============================================================================
-; Function : bdos_con_read
-; Purpose  : Read character from console directly (BDOS 1 C_READ)
-; Inputs   : None
-; Outputs  : A = console character
-; Modifies : A, C
+; CP/M BDOS Console and Dispatcher Library (bdos_con.inc)
 ;============================================================================
-bdos_con_read:				; CODE XREF: comm_rx_char_filtered+4 (call)
-		ld	a, 1			; BDOS Function 1: Console Input (C_READ)
-		jp	bdos_sys_call		; Dispatch via BDOS
-; End of function bdos_con_read
+#include "bdos_con.inc"
 
-
-;----------------------------------------------------------------------------
-
-;		S u b r	o u t i	n e
-
-;============================================================================
-; Function : bdos_con_stat
-; Purpose  : Check console input status (BDOS 11 C_STAT)
-; Inputs   : None
-; Outputs  : A = 0 if no key ready, 0FFh if key available
-; Modifies : A, C
-;============================================================================
-bdos_con_stat:				; CODE XREF: comm_rx_char_filtered+1 (call)
-		ld	a, 0Bh			; BDOS Function 11: Console Status (C_STAT)
-		jp	bdos_sys_call		; Dispatch via BDOS
-; End of function bdos_con_stat
-
-
-;----------------------------------------------------------------------------
-
-;		S u b r	o u t i	n e
-
-;============================================================================
-; Function : bdos_con_write_char
-; Purpose  : Low-level BDOS wrapper invoking Function C with parameter E
-; Inputs   : C = function code, E = parameter
-; Outputs  : A = return value
-; Modifies : A, C, DE
-;============================================================================
-bdos_con_write_char:				; CODE XREF: bdos_call_wrapper+5 (call)
-					; bdos_call_wrapper+D (call)
-		push	de			; Preserve DE
-		push	bc			; Preserve BC
-		call	bdos			; Execute BDOS system call
-		pop	bc			; Restore BC
-		pop	de			; Restore DE
-		or	a			; Set flags based on return value
-		ret				; Return
-; End of function bdos_con_write_char
-
-
-;----------------------------------------------------------------------------
-
-;		S u b r	o u t i	n e
-
-;============================================================================
-; Function : bdos_sys_call
-; Purpose  : Generic BDOS system call dispatcher with function in A, parameter in DE
-; Inputs   : A = function code, DE = parameter
-; Outputs  : Return value in A, flags set
-; Modifies : A, BC, DE, HL
-;============================================================================
-bdos_sys_call:				; CODE XREF: bdos_compute_file_size+15 (call)
-					; bdos_open_file_raw+2 (call) ...
-		push	hl			; Preserve HL
-		push	de			; Preserve DE
-		push	bc			; Preserve BC
-		ld	c, a			; C = function code
-		call	bdos			; Call BDOS entry vector at 0005h
-		or	a			; Set flags on return code
-		pop	bc			; Restore BC
-		pop	de			; Restore DE
-		pop	hl			; Restore HL
-		ret				; Return
-; End of function bdos_sys_call
 
 
 ;----------------------------------------------------------------------------

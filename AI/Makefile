@@ -5,11 +5,11 @@ ORIGINAL_DIR ?= ../Archive/zmodem-cpm-binaries
 
 all: rz.com sz.com test
 
-rz.com: rz.asm cpm3.inc zmodem.inc math32.inc fcb_format.inc z3env.inc fcb_init.inc
+rz.com: rz.asm cpm3.inc zmodem.inc math32.inc fcb_format.inc z3env.inc fcb_init.inc bdos_con.inc
 	@echo "Assembling rz.asm..."
 	$(UZ80AS) rz.asm rz.com rz.lst
 
-sz.com: sz.asm cpm3.inc zmodem.inc math32.inc fcb_format.inc z3env.inc fcb_init.inc
+sz.com: sz.asm cpm3.inc zmodem.inc math32.inc fcb_format.inc z3env.inc fcb_init.inc bdos_con.inc
 	@echo "Assembling sz.asm..."
 	$(UZ80AS) sz.asm sz.com sz.lst
 
