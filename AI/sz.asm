@@ -102,10 +102,7 @@ tx_window_packet_count	.equ	26F9h		; Count of packets sent in current window
 rpos_target_pos		.equ	26FAh		; 32-bit target position from ZRPOS frame
 tx_window_align_pos	.equ	26FEh		; 32-bit window aligned position
 tx_curr_chunk_size	.equ	2702h		; 16-bit size of current data subpacket
-file_read_byte_buffered	.equ	1BF9h		; Buffered file read routine
-cmd_window_param	.equ	0853h	; Configured window size parameter
 tx_subpacket_size	.equ	26CFh	; Active data subpacket length (128 or 1024)
-checksum8_val	.equ	0789h		; 8-bit checksum value for Xmodem packets
 ;----------------------------------------------------------------------------
 
 		.org 100h
@@ -383,7 +380,7 @@ clo_b:
 clo_a:
 		ld	a, 4			; Option 'a': append mode
 clo_set_opt:
-		ld	(0852h), a		; Store file management option
+		ld	(protocol_mode), a	; Store file management option
 		ret				; Return
 
 clo_x:
@@ -440,7 +437,7 @@ text_err_buf:	.db	0, 0, 0
 ;============================================================================
 print_transfer_file_msg:
 		ld	de, tx_file_fcb		; DE points to current file FCB in BSS
-		ld	hl, 4EDh		; HL points to display string colon buffer
+		ld	hl, str_transfer_colon	; HL points to display string colon buffer
 		ld	(hl), 3Ah		; Store colon ':'
 		inc	hl
 		xor	a			; Clear accumulator
@@ -451,58 +448,38 @@ print_transfer_file_msg:
 		dec	de			; Back up DE to drive byte
 		ld	a, (de)			; Load 1-based drive number
 		add	a, 40h			; Convert to ASCII letter ('A'..'P')
-		ld	(str_colon_colon), a	; Store drive letter into display string
+		ld	(str_transfer_drive), a	; Store drive letter into display string
 		dec	de			; Back up DE to user number byte
 		ld	a, (de)			; Load user number (0..15)
-		ld	de, 4EAh		; DE points to user number ASCII output buffer
+		ld	de, str_transfer_user	; DE points to user number ASCII output buffer
 		call	byte_to_dec_ascii	; Convert user number to decimal ASCII string
 		ld	hl, 26E3h		; HL points to 32-bit file size in bytes
-		ld	de, 4FCh		; DE points to file size ASCII output buffer
+		ld	de, str_transfer_filesize ; DE points to file size ASCII output buffer
 		call	conv_num_to_ascii	; Convert 32-bit size to formatted decimal string
 		ld	(hl), 0Dh		; Append CR
 		inc	hl
 		ld	(hl), 0Ah		; Append LF
 		inc	hl
 		ld	(hl), 24h		; Append '$' terminator for BDOS output
-		ld	de, 4E7h		; DE points to announcement string header
+		ld	de, str_transfer_announce ; DE points to announcement string header
 		ld	c, C_WRITESTR		; BDOS Function 9: Write string to console
 		jp	bdos			; Print transfer announcement and return
 ; End of function print_transfer_file_msg
 
 ;----------------------------------------------------------------------------
-		.db  0Dh ;  
-		.db  0Ah ;  
-str_colon_colon:	.db 0			; DATA XREF: print_transfer_file_msg+17 (write)
-		.db    0 ;  
-		.db    0 ;  
-		.db    0 ;  
-		.db    0 ;  
-		.db    0 ;  
-		.db    0 ;  
-		.db    0 ;  
-		.db    0 ;  
-		.db    0 ;  
-		.db    0 ;  
-		.db    0 ;  
-		.db    0 ;  
-		.db    0 ;  
-		.db    0 ;  
-		.db    0 ;  
-		.db    0 ;  
-		.db    0 ;  
-		.db  20h ;  
-		.db    0 ;  
-		.db    0 ;  
-		.db    0 ;  
-		.db    0 ;  
-		.db    0 ;  
-		.db    0 ;  
-		.db    0 ;  
-		.db    0 ;  
-		.db    0 ;  
-		.db    0 ;  
-		.db    0 ;  
-		.db    0 ;  
+str_transfer_announce:
+		.db	0Dh, 0Ah
+str_transfer_drive:
+		.db	0
+str_transfer_user:
+		.db	0, 0, 0
+str_transfer_colon:
+		.db	0
+str_transfer_filename:
+		.db	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+		.db	20h
+str_transfer_filesize:
+		.db	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 
 ;----------------------------------------------------------------------------
 
@@ -920,7 +897,7 @@ checksum8_acc:	add	a, 0		; SMC: Add byte to running 8-bit checksum accumulator
 		.db	0, 0			; High word = 0
 		.db	0, 0FCh, 0FFh, 0FFh	; 32-bit -1024 (FFFFFC00h) position decrement
 protocol_mode:	.db	4			; Default protocol mode (4 = Zmodem-32, 3 = Zmodem-16)
-		.db	20h			; Default transmit window size (32 blocks = 32KB)
+cmd_window_param: .db	20h			; Default transmit window size (32 blocks = 32KB)
 
 ;----------------------------------------------------------------------------
 ;		S u b r	o u t i	n e
@@ -1481,7 +1458,7 @@ tx_packet_body_loop:
 		ld	a, (26A9h)		; Check if receiver requested CRC-16 mode (10h)
 		cp	10h
 		jr	z, tx_packet_send_crc16	; If CRC-16 mode, transmit 16-bit CRC
-		ld	a, (checksum8_val)	; Otherwise, load 8-bit checksum byte
+		ld	a, (checksum8_acc+1)	; Otherwise, load 8-bit checksum byte
 		jr	tx_packet_send_crc_byte ; Transmit single checksum byte
 
 tx_packet_send_crc16:
@@ -2249,7 +2226,7 @@ tx_seek_rewind_read:
 tx_seek_read_loop:
 		call	cmp_4bytes_eq		; Have we reached the target position?
 		ret	z			; If equal, seek complete!
-		call	file_read_byte_buffered ; Read next byte from file
+		call	cpm_ch1_read_buffered_byte ; Read next byte from file
 		jr	nz, tx_seek_read_err	; On read error or EOF, handle error
 		call	inc32			; Increment current loaded position
 		jr	tx_seek_read_loop	; Continue seeking
@@ -2316,7 +2293,7 @@ tx_fill_buf_from_file:
 
 tx_fill_buf_loop:
 		call	get_tx_buf_byte		; HL = pointer into circular buffer for offset DE
-		call	file_read_byte_buffered ; Read next byte from buffered file stream
+		call	cpm_ch1_read_buffered_byte ; Read next byte from buffered file stream
 		jr	nz, tx_fill_buf_eof	; If error or EOF, handle EOF exit
 		ld	(hl), a			; Store byte into circular transmit buffer
 		ld	hl, file_pos_buf	; Increment 32-bit loaded position
@@ -5481,10 +5458,9 @@ memset_loop_step_1:				; CODE XREF: tx_send_file_data+12 (call)
 		jr	c, is_alpha		; If <= 'Z', is alphabetic
 
 is_not_alpha:
-unk_0_1F1F:	.db	0F6h			; Opcode for 'or n' (absorbs next byte: xor a = AFh, sets NZ)
+		.db	0F6h			; Opcode for 'or n' (absorbs next byte: xor a = AFh, sets NZ)
 
 is_alpha:
-unk_0_1F1F_step_1:
 		xor	a			; Set Zero flag (is alphabetic character)
 		ld	a, c			; Restore original character in A
 		pop	bc			; Restore BC
