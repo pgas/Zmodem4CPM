@@ -3655,82 +3655,8 @@ bdos_search_first:
 ;----------------------------------------------------------------------------
 ;		S u b r	o u t i	n e
 
-;============================================================================
-; Function : byte_to_dec_ascii
-; Purpose  : Convert 8-bit unsigned integer in A to 2-3 digit decimal ASCII string
-; Inputs   : A = integer, DE = output string buffer
-; Outputs  : ASCII decimal string written to DE
-; Modifies : All registers
-;============================================================================
-byte_to_dec_ascii:
-		push	bc			; Preserve BC
-		ld	b, 0			; Unsigned mode flag (B = 0)
-		jp	byte_to_dec_calc	; Jump to division calculation
-;============================================================================
-; Function : byte_to_signed_dec
-; Purpose  : Convert 8-bit signed integer in A to signed decimal ASCII string
-; Inputs   : A = signed integer, DE = output buffer
-; Outputs  : Signed decimal string written to DE
-; Modifies : All registers
-;============================================================================
-byte_to_signed_dec:
-		push	bc			; Preserve BC
-		ld	b, 0FFh			; Signed mode flag (B = 0FFh)
-byte_to_dec_calc:
-		push	hl			; Preserve HL
-		push	af			; Preserve AF
-		ld	h, 64h			; Divisor = 100 (64h)
-		call	div_mod_8		; Divide by 100, emit hundreds digit
-		ld	h, 0Ah			; Divisor = 10 (0Ah)
-		call	div_mod_8		; Divide remainder by 10, emit tens digit
-		call	store_ascii_char	; Emit remaining units digit
-		pop	af			; Restore AF
-		pop	hl			; Restore HL
-		pop	bc			; Restore BC
-		ret				; Return
+#include "num_ascii.inc"
 
-;----------------------------------------------------------------------------
-;		S u b r	o u t i	n e
-
-;============================================================================
-; Function : div_mod_8
-; Purpose  : 8-bit unsigned integer division and remainder calculation
-; Inputs   : A = dividend, H = divisor
-; Outputs  : L = quotient, A = remainder
-; Modifies : A, L
-;============================================================================
-div_mod_8:
-		ld	l, 0FFh			; Initialize quotient accumulator to -1
-div_mod_loop:
-		sub	h			; Subtract divisor from dividend
-		inc	l			; Increment quotient
-		jr	nc, div_mod_loop	; Repeat until borrow occurs
-		add	a, h			; Restore dividend remainder
-		ld	h, a			; H = remainder
-		ld	a, l			; A = quotient
-		or	a			; Is quotient non-zero?
-		jr	nz, store_ascii_char	; If non-zero, store ASCII digit
-		or	b			; Check leading zero suppression flag
-		ld	a, h			; A = remainder
-		ret	m			; If signed suppression, return
-		ld	a, 20h			; Space padding (' ')
-		jr	z, store_ascii_char_adv
-		xor	a			; 0
-;============================================================================
-; Function : store_ascii_char
-; Purpose  : Store ASCII character in output text buffer and advance pointer
-; Inputs   : A = digit value (0..9), DE = output buffer
-; Outputs  : Character stored at (DE), DE incremented
-; Modifies : A, B, DE
-;============================================================================
-store_ascii_char:
-		add	a, 30h			; Convert binary digit to ASCII ('0'..'9')
-		ld	b, a			; Save digit character
-store_ascii_char_adv:
-		ld	(de), a			; Store ASCII character into output buffer
-		inc	de			; Advance output pointer
-		ld	a, h			; A = remainder for next division stage
-		ret				; Return
 
 ;----------------------------------------------------------------------------
 ;		S u b r	o u t i	n e
