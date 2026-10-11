@@ -3661,28 +3661,7 @@ bdos_search_first:
 ;----------------------------------------------------------------------------
 ;		S u b r	o u t i	n e
 
-;============================================================================
-; Function : calc_strlen
-; Purpose  : Calculate string length of null-terminated ASCII string at HL
-; Inputs   : HL = string pointer
-; Outputs  : BC = string length in bytes
-; Modifies : A, BC, HL
-;============================================================================
-calc_strlen:
-		push	af			; Preserve AF
-		push	hl			; Preserve HL
-calc_strlen_loop:
-		ld	a, (hl)			; Load character from string
-		or	a			; Null terminator?
-		jr	z, calc_strlen_lo_done_1 ; If null, end of string reached
-		call	to_upper		; Convert character to uppercase in place
-		ld	(hl), a			; Store uppercase character back
-		inc	hl			; Advance string pointer
-		jr	calc_strlen_loop	; Repeat for all characters
-calc_strlen_lo_done_1:
-		pop	hl			; Restore HL
-		pop	af			; Restore AF
-		ret				; Return
+#include "strlen.inc"
 
 ;----------------------------------------------------------------------------
 ;		S u b r	o u t i	n e
@@ -3693,21 +3672,7 @@ calc_strlen_lo_done_1:
 ;----------------------------------------------------------------------------
 ;		S u b r	o u t i	n e
 
-;============================================================================
-; Function : to_upper
-; Purpose  : Convert lowercase ASCII character in A to uppercase
-; Inputs   : A = character
-; Outputs  : A = uppercase character
-; Modifies : A, F
-;============================================================================
-to_upper:
-		and	7Fh			; Mask 7-bit ASCII
-		cp	61h			; Less than 'a'?
-		ret	c			; If < 'a', already uppercase or symbol
-		cp	7Bh			; Greater than 'z'?
-		ret	nc			; If > 'z', symbol
-		and	5Fh			; Convert lowercase ('a'..'z') to uppercase ('A'..'Z')
-		ret				; Return
+#include "to_upper.inc"
 
 ;----------------------------------------------------------------------------
 free_mem_base:	.dw	heap_base

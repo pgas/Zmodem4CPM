@@ -5714,31 +5714,7 @@ cpm_restore_us_step_1:				; CODE XREF: cpm_restore_user_drive+E (jump)
 
 ;		S u b r	o u t i	n e
 
-;============================================================================
-; Function : calc_strlen
-; Purpose  : Calculate string length and convert lowercase characters to uppercase
-; Inputs   : HL = null-terminated string pointer
-; Outputs  : String converted to uppercase in place
-; Modifies : A, HL
-;============================================================================
-calc_strlen:				; CODE XREF: parse_cpm_filespec+4 (call)
-		push	af			; Preserve AF
-		push	hl			; Preserve HL
-
-calc_strlen_loop:				; CODE XREF: calc_strlen+B (jump)
-		ld	a, (hl)			; Fetch character
-		or	a			; Check for null terminator
-		jr	z, calc_strlen_lo_done_1 ; If null terminator, finish
-		call	to_upper		; Convert character to uppercase
-		ld	(hl), a			; Store converted character back
-		inc	hl			; Advance string pointer
-		jr	calc_strlen_loop	; Continue for all characters
-
-calc_strlen_lo_done_1:				; CODE XREF: calc_strlen+4 (jump)
-		pop	hl			; Restore original HL
-		pop	af			; Restore AF
-		ret				; Return
-; End of function calc_strlen
+#include "strlen.inc"
 
 ;----------------------------------------------------------------------------
 ; Function : print_inline_str_z
@@ -5862,23 +5838,7 @@ memcpy_string_step_2:				; CODE XREF: memcpy_string+F (jump)
 
 ;		S u b r	o u t i	n e
 
-;============================================================================
-; Function : to_upper
-; Purpose  : Convert lowercase ASCII character in A ('a'..'z') to uppercase ('A'..'Z')
-; Inputs   : A = character
-; Outputs  : A = uppercase character
-; Modifies : A, Flags
-;============================================================================
-to_upper:				; CODE XREF: calc_strlen+6 (call)
-					; seg000:1F14 (call)
-		and	7Fh			; Mask 7-bit ASCII
-		cp	'a'			; Less than 'a'?
-		ret	c			; If < 'a', already uppercase or symbol
-		cp	'z'+1			; Greater than 'z'?
-		ret	nc			; If > 'z', symbol
-		and	5Fh			; Convert lowercase to uppercase (clear bit 5)
-		ret				; Return
-; End of function to_upper
+#include "to_upper.inc"
 
 
 ;----------------------------------------------------------------------------
