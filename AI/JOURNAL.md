@@ -494,3 +494,41 @@ To eliminate code duplication while strictly preserving 100% byte-for-byte binar
    - Total duplicate lines eliminated: **1,241 lines**.
    - `make clean && make test` passes with zero binary drift (100% bit-for-bit identity).
 
+---
+
+## Phase 20: Unified CRC Engine, Symbolic Data Structures & Human Comprehension
+
+Building on the modular include library, Phase 20 completed the factorization of the remaining shared subroutines, eliminated raw magic numbers with symbolic data structures, and added high-level algorithm documentation with strict 100% byte-for-byte binary parity:
+
+1. **Extraction of Unified CRC Engine (`AI/crc.inc`)**:
+   - Extracted reversed IEEE 802.3 CRC-32 polynomial (`crc32_poly_rev: 20h, 83h, 0B8h, 0EDh`) and residue constant (`crc32_final_xor: 0E3h, 20h, 0BBh, 0DEh`).
+   - Unified `crc32_update` / `crc32_acc_update` table-driven accumulator update.
+   - Unified `build_crc32_table` dynamic 1KB RAM table generator.
+   - Unified `crc16` 16-bit CCITT polynomial 1021h accumulator.
+   - Resolved assembler evaluation nuances: `.equ $+2` immediately assigned to `crc32_table_base` ensures exact operand address resolution across both `rz.com` and `sz.com`.
+   - **Eliminated an additional 260 lines of duplicate assembly**, bringing total duplication eliminated to **1,501 lines**.
+
+2. **Symbolic Data Structure Equates (Zero Byte Drift)**:
+   - **FCB Offsets & Sizes** in `cpm3.inc`: `FCB_SIZE` (36), `FCB_DRV` (0), `FCB_NAME` (1), `FCB_EXT` (9), `FCB_EX` (12), `FCB_RC` (15), `FCB_CR` (32), `FCB_R0` (33..35). Replaced raw `24h` and numeric literals.
+   - **ZCPR3 / Z-System Descriptor Equates** in `cpm3.inc`: `Z3_NDR_OFF` (15h), `Z3_MDRV_OFF` (2Ch), `Z3_MUSR_OFF` (2Dh), `Z3_WHEEL_OFF` (2Eh). Provided readable aliases `z3_get_wheel_byte`, `z3_get_max_drive`, `z3_get_max_user`, `z3_get_ndr_table`.
+   - **Buffered Channel I/O (CIO)** in `cpm3.inc`: `CIO_FLAG` (0), `CIO_COUNT` (1), `CIO_PTR` (2), `CIO_FCB` (4), `CIO_BUF` (28h), `CIO_BUF_OFF` (26h), `CIO_SIZE` (168).
+   - **Transmit BSS Buffers** in `sz.asm`: `tx_file_user` (226Dh), `tx_file_fcb` (226Eh), `tx_file_fcb + FCB_NAME` (226Fh). Replaced hardcoded addresses.
+
+3. **High-Level Pseudocode Banners & State Machine Diagrams**:
+   - Added C pseudocode headers for:
+     - Shell sort with odd-gap sequence (`file_stream_read_record` in `sz.asm`)
+     - In-place cycle permutation (`file_open_for_transmit` in `sz.asm`)
+     - 32-bit repeated-subtraction decimal formatter (`conv_num_to_ascii` in `rz.asm` and `sz.asm`)
+     - CRC-32 dynamic table generator (`build_crc32_table` in `crc.inc`)
+   - Added ASCII protocol state machine diagrams to `rx_batch_engine` (`rz.asm`) and `tx_dispatch_protocol` (`sz.asm`).
+
+4. **SMC Cross-Reference Tracking**:
+   - Added standard bidirectional tags across all 11+ runtime self-modifying code sites:
+     - `; SMC TARGET: Patched by ld (label), reg at <writer>`
+     - `; SMC WRITER: Patches immediate operand of ld reg, imm at <target>`
+
+5. **Binary Verification**:
+   - Executed `make clean && make test`.
+   - Both `rz.com` and `sz.com` remain **100% byte-for-byte identical** to the 1992 reference binaries.
+
+

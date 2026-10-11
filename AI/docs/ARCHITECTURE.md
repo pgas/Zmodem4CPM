@@ -267,9 +267,19 @@ Because `rz` and `sz` present different module sequences, a single monolithic `c
 | [`fcb_init.inc`](../fcb_init.inc) | FCB Initialization | [`ascii_to_digit`](../fcb_init.inc#L14) (digit conversion), [`init_empty_fcb`](../fcb_init.inc#L28), [`init_fcb_spaces`](../fcb_init.inc#L42) (space padding), [`memset_de_spaces`](../fcb_init.inc#L66) (`djnz` memory fill). | 148 lines |
 | [`bdos_con.inc`](../bdos_con.inc) | Console & BDOS Wrappers | [`bdos_con_read`](../bdos_con.inc#L14), [`bdos_con_stat`](../bdos_con.inc#L24), [`bdos_con_write_char`](../bdos_con.inc#L34) (aliased as `bdos_s2`), [`bdos_sys_call`](../bdos_con.inc#L49) (aliased as `bdos_cs3`). | 124 lines |
 | [`serial_comm.inc`](../serial_comm.inc) | Serial Framing & Abort | [`str_can_abort_seq`](../serial_comm.inc#L7) (10x CAN + 10x BS), [`tx_can_sequence`](../serial_comm.inc#L18), [`tx_raw_string`](../serial_comm.inc#L28), [`comm_rx_char_filtered`](../serial_comm.inc#L42) (keyboard abort & timer). | 145 lines |
+| [`crc.inc`](../crc.inc) | CRC-16 & CRC-32 Engines | [`crc32_poly_rev`](../crc.inc#L8) (reversed IEEE 802.3 0xEDB88320), [`crc32_final_xor`](../crc.inc#L9) (0xDEBB20E3 residue), [`crc32_update`](../crc.inc#L18) (table lookup), [`build_crc32_table`](../crc.inc#L66) (dynamic 1KB RAM table generator), [`crc16`](../crc.inc#L143) (16-bit CCITT polynomial 1021h accumulator). | 260 lines |
 
 ### 7.3 Quantitative Refactoring Impact
-- **Total Duplicate Assembly Eliminated**: **1,241 lines** removed from `rz.asm` and `sz.asm`.
-- **Modular Maintainability**: Bug fixes and optimizations in shared math, string formatting, or OS wrappers propagate simultaneously to both programs without duplicate editing.
+- **Total Duplicate Assembly Eliminated**: **1,501 lines** removed across `rz.asm` and `sz.asm`.
+- **Modular Maintainability**: Bug fixes and optimizations in shared math, CRC computation, string formatting, or OS wrappers propagate simultaneously to both programs without duplicate editing.
 - **Binary Parity Guarantee**: All binaries reassemble 100% bit-for-bit identical to the original 1992 executables (`make clean && make test`).
+
+### 7.4 Symbolic Data Structures & Human Comprehension Enhancements
+In addition to modular include files, all data structures and control blocks have been promoted from raw offsets and hardcoded addresses to symbolic manifests in [`cpm3.inc`](../cpm3.inc):
+1. **CP/M File Control Block (FCB)**: `FCB_SIZE` (36), `FCB_DRV` (0), `FCB_NAME` (1), `FCB_EXT` (9), `FCB_EX` (12), `FCB_RC` (15), `FCB_CR` (32), `FCB_R0` (33..35).
+2. **ZCPR3 / Z-System Environment Descriptor**: `Z3_NDR_OFF` (15h: Named Directory Table pointer), `Z3_MDRV_OFF` (2Ch: Max Drive), `Z3_MUSR_OFF` (2Dh: Max User), `Z3_WHEEL_OFF` (2Eh: Wheel security byte). Function aliases `z3_get_wheel_byte`, `z3_get_max_drive`, `z3_get_max_user`, `z3_get_ndr_table` provide readable entry points.
+3. **Channel I/O Control Block (CIO)**: `CIO_FLAG` (0: open state), `CIO_COUNT` (1: remaining sector bytes), `CIO_PTR` (2: active byte pointer), `CIO_FCB` (4: embedded 36-byte FCB), `CIO_BUF` (28h: 128-byte sector DMA buffer), `CIO_SIZE` (168 bytes total).
+4. **Self-Modifying Code (SMC) Bidirectional Cross-References**: Every immediate operand dynamically patched at runtime is explicitly marked with `; SMC TARGET: Patched by ld (label), reg at <writer>` and `; SMC WRITER: Patches immediate operand of ld reg, imm at <target>`.
+5. **C-Equivalent Algorithm Banners**: Embedded in headers for in-memory Shell sort with odd-gap sequence, in-place cycle permutation, 32-bit repeated-subtraction decimal conversion, and CRC-32 dynamic table generation.
+
 
