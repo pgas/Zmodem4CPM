@@ -289,16 +289,16 @@ Search0_loop:
 ;============================================================================
 print_error_count:
 		ld	a, (transfer_err_count)	; Load accumulated transfer error count
-		ld	de, text495h		; Destination buffer for formatted number string
+		ld	de, str_err_count_buf	; Destination buffer for formatted number string
 		call	byte_to_dec_ascii	; Convert error count byte to 3-digit decimal ASCII
-		ld	de, text493h		; DE points to "\r\n" followed by count and " error(s)\r\n$"
+		ld	de, str_error_count_msg	; DE points to "\r\n" followed by count and " error(s)\r\n$"
 		ld	c, C_WRITESTR		; BDOS Function 9: Write string to console
 		jp	bdos			; Output error summary string and return
 
 ;----------------------------------------------------------------------------
 
-text493h:	.text	"\r\n"
-text495h:	.db	0,0,0
+str_error_count_msg: .text	"\r\n"
+str_err_count_buf: .db	0,0,0
 		.text	" error(s)\r\n$"
 
 ;----------------------------------------------------------------------------
@@ -331,7 +331,7 @@ print_transfer_file_msg:
 		call	byte_to_dec_ascii	; Convert user number to decimal ASCII string
 		ld	a, '$'			; String terminator character
 		ld	(term_fn), a		; Terminate filename display string
-		ld	de, text4F2h		; DE points to formatted announcement header
+		ld	de, str_recv_announce_hdr ; DE points to formatted announcement header
 		ld	c, C_WRITESTR		; BDOS Function 9: Write string to console
 		call	bdos			; Print drive, user, and filename header
 		ld	hl, (rx_file_info_ptr)	; HL points to remote ZFILE information string
@@ -351,7 +351,7 @@ print_transfer_file_msg:
 
 ;----------------------------------------------------------------------------
 
-text4F2h:	.text	"\r\n"
+str_recv_announce_hdr: .text	"\r\n"
 str_drive_letter:	.db	0			
 str_user_num_buf:	.db	0 ;
 		.db	0 ;
@@ -389,12 +389,12 @@ print_transfer_stats:
 		ld	de, stats_str_buf	; DE points to output buffer for ASCII number
 		call	conv_num_to_ascii	; Convert 32-bit count to formatted decimal ASCII
 		ld	(hl), '$'		; Append '$' string terminator
-		ld	de, text51Eh		; DE points to carriage return and buffer
+		ld	de, str_stats_cr	; DE points to carriage return and buffer
 		ld	c, C_WRITESTR		; BDOS Function 9: Write string to console
 		jp	bdos			; Print updated byte count on current line and return
 
 ;----------------------------------------------------------------------------
-text51Eh:
+str_stats_cr:
 		.db  0Dh ;
 stats_str_buf:	.db    0 ;
 		.db    0 ;
@@ -435,7 +435,7 @@ str_sav:	.db	7ch		; |
 		.db	08h		; /b
 		.db	24h		; $
 
-		ld	de, text569h		; String: "can't open any file\r\n$"
+		ld	de, str_cant_open_file	; String: "can't open any file\r\n$"
 		jr	bdos_print_string	; Print string via BDOS Function 9
 
 ;----------------------------------------------------------------------------
@@ -449,7 +449,7 @@ str_sav:	.db	7ch		; |
 ; Modifies : C, DE
 ;============================================================================
 print_file_skipped:
-		ld	de, text55Ah		; DE points to 'File skipped\r\n$'
+		ld	de, str_file_skipped	; DE points to 'File skipped\r\n$'
 ;============================================================================
 ; Function : bdos_print_string
 ; Purpose  : Print $-terminated string addressed by DE to console (BDOS 9)
@@ -463,8 +463,8 @@ bdos_print_string:
 
 ;----------------------------------------------------------------------------
 
-text55Ah:	.text	"File skipped\r\n$"
-text569h:	.text	"can't open any file\r\n$"
+str_file_skipped: .text	"File skipped\r\n$"
+str_cant_open_file: .text	"can't open any file\r\n$"
 
 ;----------------------------------------------------------------------------
 ;		S u b r	o u t i	n e
