@@ -23,7 +23,11 @@ saved_drive_num	.equ	2001h
 active_user_num	.equ	2002h
 file_fcb	.equ	2003h
 nstack		.equ	2067h
+tx_file_user	.equ	226Dh		; Transmit file user area byte
+tx_file_fcb	.equ	226Eh		; Transmit file CP/M FCB (36 bytes)
 crc32_acc_bytes	.equ	229Bh		; 4-byte CRC-32 accumulator buffer
+crc32_acc	.equ	crc32_acc_bytes	; Standard alias for CRC-32 accumulator buffer
+crc32_table	.equ	229Fh		; 1024-byte dynamic CRC-32 lookup table
 tx_progress_count	.equ	26A4h	; 32-bit transfer progress byte count (for display)
 remote_can_flags	.equ	26A9h		; Receiver capability flags (CANFDX, CANFC32, etc.)
 tx_hdr_flags	.equ	26AAh		; Outgoing frame header flag/position array (4 bytes)
@@ -578,7 +582,7 @@ text_err_buf:	.db	0, 0, 0
 ; Modifies : A, B, C, DE, HL
 ;============================================================================
 print_transfer_file_msg:
-		ld	de, 226Eh		; DE points to current file FCB in BSS
+		ld	de, tx_file_fcb		; DE points to current file FCB in BSS
 		ld	hl, 4EDh		; HL points to display string colon buffer
 		ld	(hl), 3Ah		; Store colon ':'
 		inc	hl
@@ -972,8 +976,8 @@ rx_buffer_put_byte:
 ; Modifies : A, B, HL
 ;============================================================================
 clear_transfer_state:
-		ld	hl, 226Dh		; HL points to transfer state block in RAM
-		ld	b, 25h			; Count = 37 (25h) bytes to clear
+		ld	hl, tx_file_user	; HL points to transfer state block (user + FCB)
+		ld	b, FCB_SIZE + 1		; Count = 37 (25h) bytes to clear (user + 36-byte FCB)
 		jr	clear_bytes_zero_fill	; Zero out memory and return
 
 ;----------------------------------------------------------------------------
@@ -1123,152 +1127,8 @@ checksum8_acc:	add	a, 0		; SMC: Add byte to running 8-bit checksum accumulator
 		pop	af			; Restore AF
 		ret				; Return
 
-;----------------------------------------------------------------------------
-; CRC-32 Polynomial Tables (Reversed IEEE 802.3 0xEDB88320)
-;----------------------------------------------------------------------------
-crc32_poly_rev:	.db	20h, 83h, 0B8h, 0EDh	; Polynomial coefficients (reversed)
-crc32_final_xor:.db	0E3h, 20h, 0BBh, 0DEh	; Final residue XOR mask
+#include "crc.inc"
 
-;============================================================================
-; Function : crc32_update
-; Purpose  : Update 32-bit Zmodem CRC with byte in A using table lookup
-; Inputs   : A = byte to process
-; Outputs  : Running CRC-32 updated at 229Bh (crc32_acc_bytes)
-; Modifies : A, BC, HL, IX, IY
-;============================================================================
-crc32_acc_update:
-crc32_update:	push	af			; Preserve input byte/flags on stack
-crc32_table_base:	.equ	$+2		; SMC: 16-bit base address of generated CRC-32 table
-		ld	iy, 229Fh		; IY points to CRC-32 table in RAM
-		ld	ix, 229Bh		; IX points to 32-bit CRC accumulator
-		xor	(ix+0)		; Index = input byte XOR lowest CRC byte
-		ld	h, 0			; HL = table entry index * 4
-		ld	l, a
-		add	hl, hl			; Multiply index by 2
-		add	hl, hl			; Multiply index by 4
-		ld	b, h			; BC = index * 4
-		ld	c, l
-		add	iy, bc			; IY points to 4-byte CRC table entry
-		ld	a, (iy+0)		; Byte 0: Table[0] XOR CRC[1]
-		xor	(ix+1)
-		ld	(ix+0), a		; Store updated CRC byte 0
-		ld	a, (iy+1)		; Byte 1: Table[1] XOR CRC[2]
-		xor	(ix+2)
-		ld	(ix+1), a		; Store updated CRC byte 1
-		ld	a, (iy+2)		; Byte 2: Table[2] XOR CRC[3]
-		xor	(ix+3)
-		ld	(ix+2), a		; Store updated CRC byte 2
-		ld	a, (iy+3)		; Byte 3: Table[3]
-		ld	(ix+3), a		; Store updated CRC byte 3
-		pop	af			; Restore original AF
-		ret				; Return
-
-;----------------------------------------------------------------------------
-;============================================================================
-; Function : build_crc32_table
-; Purpose  : Dynamically generate 1KB Zmodem CRC-32 lookup table
-; Inputs   : None
-; Outputs  : CRC-32 table generated in RAM
-; Modifies : A, B, DE, HL, IX, IY
-;============================================================================
-build_crc32_table:
-		push	de			; Preserve DE
-		push	hl			; Preserve HL
-		ld	hl, (crc32_table_base)	; HL = base address of 1024-byte CRC table buffer
-		ld	bc, 3FFh		; 1023 (3FFh) bytes offset to end of table
-		add	hl, bc			; HL points to last byte of CRC table buffer
-		push	hl			; Transfer table top pointer into IY
-		pop	iy
-		ld	ix, crc32_poly_rev	; IX points to reversed CRC-32 polynomial
-		xor	a			; Initialize table index loop (counts down from 255)
-
-build_crc32_outer:
-		push	af			; Preserve outer entry loop counter
-		ld	hl, 0FFFFh		; Initialize seed registers
-		ld	de, 0FFFFh
-		xor	e			; Seed low byte with current entry index
-		ld	e, a
-		ld	b, 8			; 8 bits per byte
-
-build_crc32_inner:
-		scf				; Shift seed right by 1 bit with carry
-		rr	h
-		rr	l
-		rr	d
-		rr	e
-		jr	nc, build_crc32_store	; If bit shifted out was 0, skip polynomial XOR
-		ld	a, e			; XOR low byte with polynomial byte 0
-		xor	(ix+0)
-		ld	e, a
-		ld	a, d			; XOR byte 1 with polynomial byte 1
-		xor	(ix+1)
-		ld	d, a
-		ld	a, l			; XOR byte 2 with polynomial byte 2
-		xor	(ix+2)
-		ld	l, a
-		ld	a, h			; XOR high byte with polynomial byte 3
-		xor	(ix+3)
-		ld	h, a
-
-build_crc32_store:
-		djnz	build_crc32_inner	; Process all 8 bits
-		ld	a, h			; One's complement high byte
-		cpl	
-		ld	(iy+0), a		; Store high byte in table
-		dec	iy			; Move down 1 byte
-		ld	a, l			; One's complement byte 2
-		cpl	
-		ld	(iy+0), a		; Store byte 2 in table
-		dec	iy			; Move down 1 byte
-		ld	a, d			; One's complement byte 1
-		cpl	
-		ld	(iy+0), a		; Store byte 1 in table
-		dec	iy			; Move down 1 byte
-		ld	a, e			; One's complement low byte
-		cpl	
-		ld	(iy+0), a		; Store low byte in table
-		dec	iy			; Move down 1 byte
-		pop	af			; Restore outer loop counter
-		inc	a			; Increment entry index
-		jr	nz, build_crc32_outer	; Repeat for all 256 table entries (1024 bytes)
-		pop	hl			; Restore HL
-		pop	de			; Restore DE
-		ret				; Return
-
-;----------------------------------------------------------------------------
-;		S u b r	o u t i	n e
-
-;============================================================================
-; Function : crc16
-; Purpose  : Update CRC-16 CCITT accumulator with byte in A
-; Inputs   : A = byte to process
-; Outputs  : crc16_seed (crc_seed) updated
-; Modifies : A, B, DE, HL
-;============================================================================
-crc16:
-		push	af			; Preserve input byte/flags on stack
-
-crc16_seed:	ld	hl, 0			; SMC: Running CRC-16 accumulator operand
-		ld	de, 1021h		; CCITT CRC-16 polynomial generator (x^16 + x^12 + x^5 + 1)
-		xor	h			; XOR input byte with current high byte of CRC
-		ld	h, a			; Store XOR result into high byte of CRC
-		ld	b, 8			; Process 8 bits
-
-crc16_bit_loop:
-		add	hl, hl			; Shift CRC left by 1 bit (HL << 1)
-		jr	nc, crc16_next_bit	; If no carry shifted out, skip polynomial XOR
-		ld	a, h			; XOR high byte with polynomial high byte (10h)
-		xor	d
-		ld	h, a
-		ld	a, l			; XOR low byte with polynomial low byte (21h)
-		xor	e
-		ld	l, a
-
-crc16_next_bit:
-		djnz	crc16_bit_loop		; Process all 8 bits
-		ld	(crc16_seed+1), hl	; Store updated CRC-16 back into SMC operand
-		pop	af			; Restore AF
-		ret				; Return
 
 ;----------------------------------------------------------------------------
 ; Transmission Configuration Parameters:
@@ -1364,7 +1224,7 @@ init_crc_acc_step_1:
 fetch_next_matched_file:
 files_matched_list:	.equ	$+1		; SMC pointer immediate operand
 		ld	hl, 0			; Dynamically patched with matching files list
-		ld	de, 226Dh		; Destination FCB buffer
+		ld	de, tx_file_user	; Destination buffer: user byte followed by FCB
 		ldi				; Copy status/user byte
 default_drive_num:	.equ	$+1		; SMC drive immediate operand
 		ld	a, 0			; Dynamically patched default drive number
@@ -1459,7 +1319,7 @@ tx_batch_engin_step_1:
 ; Modifies : All registers
 ;============================================================================
 tx_file_transfer:
-		ld	de, 226Eh		; DE points to FCB filename field (226Dh + 1)
+		ld	de, tx_file_fcb		; DE points to transmit file FCB
 		call	bdos_compute_file_size	; BDOS Function 35: Compute file size in records
 		ld	de, 0			; Convert 128-byte records to 32-bit byte count (* 128)
 		srl	h			; DE:HL = records * 128
@@ -1472,7 +1332,7 @@ tx_file_transfer:
 		ld	(26E5h), hl		; Save 32-bit file size high word (26E5h)
 		ld	hl, 26C3h		; Clear 4-byte buffered position (26C3h)
 		call	clear_4bytes
-		ld	de, 226Eh		; DE points to FCB
+		ld	de, tx_file_fcb		; DE points to FCB
 		call	cpm_bdos_read_record	; Open file via BDOS
 		jr	z, tx_file_transf_step_1 ; If open successful, continue
 		xor	a			; Return error / skip
@@ -1484,7 +1344,7 @@ tx_file_transf_step_1:
 		ld	a, 0
 		ld	(26D6h), a		; Clear transmit EOF flag (26D6h)
 		ld	(26D7h), a		; Clear file reader EOF flag (26D7h)
-		ld	de, 226Eh		; DE points to FCB filename
+		ld	de, tx_file_fcb		; DE points to FCB
 		call	print_transfer_file_msg	; Print sending filename banner to console
 		ld	hl, 26D9h		; Increment total files transferred count
 		inc	(hl)
@@ -1512,7 +1372,7 @@ tx_send_file_data:
 		xor	a			; A = 0
 		ld	b, 80h			; 128 bytes
 		call	memset_buffer		; Zero out 128 bytes in buffer
-		ld	de, 226Fh		; DE points to filename in FCB (226Dh + 2, skip drive)
+		ld	de, tx_file_fcb + FCB_NAME ; DE points to filename in FCB (skip drive)
 		call	format_fcb_name		; Format 8.3 filename as string at HL
 		ld	b, 0Ch			; 12 characters max
 tx_send_file_d_call_1:
@@ -2564,7 +2424,7 @@ tx_seek_read_forward:
 
 tx_seek_rewind_read:
 		call	cpm_bdos_open_file	; Close active file
-		ld	de, 226Eh		; DE points to FCB
+		ld	de, tx_file_fcb		; DE points to FCB
 		call	cpm_bdos_read_record	; Reopen file from record 0
 		ex	de, hl			; DE = target position
 		ld	hl, file_pos_buf	; Reset file_pos_buf to 0
@@ -5234,7 +5094,7 @@ cpm_bdos_file_read_loop:			; CODE XREF: cpm_bdos_read_record+4 (call)
 		inc	hl
 		inc	hl
 		push	hl			; Preserve destination FCB pointer
-		ld	bc, 24h			; 36 bytes (CP/M FCB length)
+		ld	bc, FCB_SIZE		; 36 bytes (CP/M FCB length)
 		ex	de, hl			; HL = source FCB, DE = destination FCB
 		ldir				; Copy caller FCB into channel control block
 		pop	de			; Restore DE = channel FCB pointer
@@ -5253,7 +5113,7 @@ cpm_file_init_buffer_state:
 		ld	(hl), 80h		; Initialize buffer pointer index (128 bytes)
 		inc	hl
 		ex	de, hl			; DE points into control block
-		ld	hl, 26h			; Offset to sector data buffer (+38)
+		ld	hl, CIO_BUF_OFF		; Offset to sector data buffer (+38)
 		add	hl, de			; HL points to sector data buffer
 		ex	de, hl			; Swap: DE = buffer data, HL = control block
 		ld	(hl), e			; Store data pointer low byte
@@ -5287,7 +5147,7 @@ cpm_ch2_read_block:
 		inc	hl
 		inc	hl
 		push	hl			; Preserve destination FCB pointer
-		ld	bc, 24h			; 36 bytes (CP/M FCB length)
+		ld	bc, FCB_SIZE		; 36 bytes (CP/M FCB length)
 		ex	de, hl			; HL = source FCB, DE = destination FCB
 		ldir				; Copy caller FCB into channel control block
 		pop	de			; Restore DE = channel FCB pointer
@@ -5333,7 +5193,7 @@ cpm_ch1_get_byte:
 		ld	(hl), 80h		; Reset sector byte counter = 128
 		inc	hl
 		ex	de, hl			; Reset buffer pointer to base
-		ld	hl, 26h
+		ld	hl, CIO_BUF_OFF
 		add	hl, de
 		ex	de, hl
 		ld	(hl), e
@@ -5389,7 +5249,7 @@ cpm_ch2_put_byte_entry:
 		ld	(hl), 80h		; Reset sector byte counter = 128
 		inc	hl
 		ex	de, hl			; Reset buffer pointer to base
-		ld	hl, 26h
+		ld	hl, CIO_BUF_OFF
 		add	hl, de
 		ex	de, hl
 		ld	(hl), e
@@ -5566,18 +5426,18 @@ bdos_call_wrapper:				; CODE XREF: parse_fcb_drive_user+8 (call)
 ; Modifies : All registers
 ;============================================================================
 bdos_compute_file_size:				; CODE XREF: tx_file_transfer+3 (call)
-		ld	a, 23h			; BDOS Function 35: Compute File Size (F_SIZE)
+		ld	a, F_SIZE		; BDOS Function 35: Compute File Size (F_SIZE)
 		jr	bdos_compute_size_call	; Execute call
 
 bdos_set_random_record:
-		ld	a, 24h			; BDOS Function 36: Set Random Record (F_RANDREC)
+		ld	a, F_RANDREC		; BDOS Function 36: Set Random Record (F_RANDREC)
 
 bdos_compute_size_call:				; CODE XREF: bdos_compute_file_size+2 (jump)
 		push	de			; Preserve caller FCB pointer
 		push	bc			; Preserve BC
 		push	af			; Preserve function code in A
 		ld	hl, cpm_io_scratch_fcb	; Destination = scratch FCB buffer
-		ld	bc, 24h			; 36 bytes (FCB length)
+		ld	bc, FCB_SIZE		; 36 bytes (FCB length)
 		push	hl			; Preserve scratch FCB pointer
 		ex	de, hl			; HL = caller FCB, DE = scratch FCB
 		ldir				; Copy caller FCB into scratch buffer

@@ -1060,154 +1060,8 @@ patch_checksum8_val:	.equ	$+1		; SMC: immediate byte operand holding running che
 		pop	af			; Restore original AF
 		ret				; Return
 
-crc32_poly_rev:	.db	20h
-		.db	83h
-		.db	0B8h
-		.db	0EDh
+#include "crc.inc"
 
-crc32_final_xor:	.db	0E3h
-		.db	20h
-		.db	0BBh
-		.db	0DEh
-
-;============================================================================
-; Function : crc32_update
-; Purpose  : Update 32-bit Zmodem CRC with byte in A using table lookup
-; Inputs   : A = byte to process
-; Outputs  : rbuf_bfree_step_3 (CRC-32) updated
-; Modifies : A, BC, HL, IX, IY
-;============================================================================
-crc32_update:
-		push	af			; Preserve input byte/flags on stack
-patch_crc32_table_base:	.equ	$+2	; SMC: 16-bit base address of generated CRC-32 table
-		ld	iy, rbuf_bfree_step_4	; IY points to CRC-32 table in RAM
-		ld	ix, rbuf_bfree_step_3	; IX points to 32-bit CRC accumulator
-		xor	(ix+0)			; Index = input byte XOR lowest CRC byte
-		ld	h, 0			; HL = table entry index * 4 (each entry is 4 bytes)
-		ld	l, a
-		add	hl, hl			; Multiply index by 2
-		add	hl, hl			; Multiply index by 4
-		ld	b, h			; BC = index * 4
-		ld	c, l
-		add	iy, bc			; IY points to 4-byte CRC table entry
-		ld	a, (iy+0)		; Byte 0: Table[0] XOR CRC[1]
-		xor	(ix+1)
-		ld	(ix+0), a		; Store updated CRC byte 0
-		ld	a, (iy+1)		; Byte 1: Table[1] XOR CRC[2]
-		xor	(ix+2)
-		ld	(ix+1), a		; Store updated CRC byte 1
-		ld	a, (iy+2)		; Byte 2: Table[2] XOR CRC[3]
-		xor	(ix+3)
-		ld	(ix+2), a		; Store updated CRC byte 2
-		ld	a, (iy+3)		; Byte 3: Table[3]
-		ld	(ix+3), a		; Store updated CRC byte 3
-		pop	af			; Restore original AF
-		ret				; Return
-
-;----------------------------------------------------------------------------
-;		S u b r	o u t i	n e
-
-;============================================================================
-; Function : build_crc32_table
-; Purpose  : Dynamically generate 1KB Zmodem CRC-32 lookup table
-; Inputs   : None
-; Outputs  : CRC-32 table generated in RAM
-; Modifies : A, B, DE, HL, IX, IY
-;============================================================================
-build_crc32_table:
-		push	de			; Preserve DE
-		push	hl			; Preserve HL
-		ld	hl, (patch_crc32_table_base) ; HL = base address of 1024-byte CRC table buffer
-		ld	bc, 3FFh		; 1023 (3FFh) bytes offset to end of table
-		add	hl, bc			; HL points to last byte of CRC table buffer
-		push	hl			; Transfer table top pointer into IY
-		pop	iy
-		ld	ix, crc32_poly_rev	; IX points to reversed CRC-32 polynomial
-		xor	a			; Initialize table index loop (counts down from 255)
-build_crc32_outer:
-		push	af			; Preserve outer entry loop counter
-		ld	hl, 0FFFFh		; Initialize seed registers
-		ld	de, 0FFFFh
-		xor	e			; XOR low byte with entry index
-		ld	e, a
-		ld	b, 8			; Shift 8 bits per entry
-build_crc32_inner:
-		scf				; Set carry flag
-		rr	h			; Rotate 32-bit register (HL:DE) right through carry
-		rr	l
-		rr	d
-		rr	e
-		jr	nc, build_crc32_store	; If bit shifted out was 0, skip XOR with polynomial
-		ld	a, e			; If bit shifted out was 1, XOR with polynomial
-		xor	(ix+0)
-		ld	e, a
-		ld	a, d
-		xor	(ix+1)
-		ld	d, a
-		ld	a, l
-		xor	(ix+2)
-		ld	l, a
-		ld	a, h
-		xor	(ix+3)
-		ld	h, a
-build_crc32_store:
-		djnz	build_crc32_inner	; Loop for all 8 bits
-		ld	a, h			; Invert byte 3
-		cpl
-		ld	(iy+0), a		; Store into table
-		dec	iy
-		ld	a, l			; Invert byte 2
-		cpl
-		ld	(iy+0), a		; Store into table
-		dec	iy
-		ld	a, d			; Invert byte 1
-		cpl
-		ld	(iy+0), a		; Store into table
-		dec	iy
-		ld	a, e			; Invert byte 0
-		cpl
-		ld	(iy+0), a		; Store into table
-		dec	iy
-		pop	af			; Restore outer loop counter
-		inc	a			; Advance to next table entry
-		jr	nz, build_crc32_outer	; Repeat for all 256 table entries (1024 bytes)
-		pop	hl			; Restore HL
-		pop	de			; Restore DE
-		ret				; Return
-
-;----------------------------------------------------------------------------
-
-;============================================================================
-; Function : crc16
-; Purpose  : Updates running 16-bit CRC-CCITT accumulator with byte in A
-; Inputs   : A  = byte to process
-; Outputs  : (crc_seed) updated with new 16-bit CRC value
-; Modifies : None (preserves AF via PUSH/POP)
-; Notes    : Uses standard CCITT polynomial 1021h (x^16 + x^12 + x^5 + 1).
-;            Uses self-modifying code patch at crc_seed to maintain running CRC.
-;============================================================================
-crc16:
-		push	af			; Preserve input byte/flags
-crc_seed:	.equ	$+1			; SMC patch point: running CRC in HL
-		ld	hl, 0			; HL = current 16-bit CRC accumulator
-		ld	de, 1021h		; DE = CRC16-CCITT polynomial (x^16 + x^12 + x^5 + 1)
-		xor	h			; XOR input byte with CRC high byte
-		ld	h, a
-		ld	b, 8			; Process 8 bits
-crc16_bit_loop:
-		add	hl, hl			; Shift CRC left by 1 bit
-		jr	nc, crc16_next_bit	; If bit shifted out was 0, skip XOR
-		ld	a, h			; If bit shifted out was 1, XOR with polynomial
-		xor	d
-		ld	h, a
-		ld	a, l
-		xor	e
-		ld	l, a
-crc16_next_bit:
-		djnz	crc16_bit_loop		; Loop for all 8 bits
-		ld	(crc_seed), hl		; Store updated 16-bit CRC back to SMC immediate
-		pop	af			; Restore original input byte/flags
-		ret				; Return
 
 ;----------------------------------------------------------------------------
 ;		S u b r	o u t i	n e
@@ -1516,7 +1370,8 @@ init_file_prog_call_3:
 		ret	c			; Return if error
 		ld	hl, fcb_record_count_ext ; Clear record count extension byte
 		ld	(hl), 0
-		ld	hl, file_fcb_step_1	; HL points to 32-bit record count from FCB
+file_fcb_r0_ptr:
+		ld	hl, file_fcb_r0		; HL points to 32-bit record count from FCB (r0,r1,r2)
 		call	dec32			; Decrement to point to last 128-byte record
 		ld	de, rx_char_saved_step_2 ; Save last record index to position tracker
 		call	copy_4bytes
@@ -3999,6 +3854,7 @@ saved_drive_num:	.db	0
 transfer_state_vars:	.db	0
 file_fcb:	.db	0
 		.fill	$20,0		
+file_fcb_r0:
 file_fcb_step_1:	.db	0
 		.db	0
 		.db	0
@@ -4015,7 +3871,9 @@ rbuf_bfree_step_1:	.ds	80h
 num_to_ascii_buf:	.ds	1
 		.ds	3
 rbuf_bfree_step_2:	.ds	4
+crc32_acc:
 rbuf_bfree_step_3:	.ds	4
+crc32_table:
 rbuf_bfree_step_4:	.ds	400h
 esc_ctrl_chars_flag:	.ds	1
 rx_hdr_crc_format:	.ds	1

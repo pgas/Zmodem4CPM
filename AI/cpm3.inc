@@ -59,3 +59,41 @@ S_SYSVAR        .equ    49              ; Function 49: Get / Set System Control 
 SCB_QERR        .equ    0006h           ; Quiet BDOS error mode flag (00=display, FF=return error code)
 SCB_DMAERR      .equ    003Ch           ; DMA boundary / overrun error vector offset
 SCB_DISKERR     .equ    003Eh           ; Disk hardware error vector offset
+
+;----------------------------------------------------------------------------
+; CP/M File Control Block (FCB) Field Offsets & Constants
+;----------------------------------------------------------------------------
+FCB_SIZE        .equ    36              ; Standard CP/M FCB size (36 bytes)
+FCB_DRV         .equ    0               ; Drive code (0=default, 1=A, 2=B, ...)
+FCB_NAME        .equ    1               ; File name (8 ASCII bytes)
+FCB_EXT         .equ    9               ; File extension (3 ASCII bytes)
+FCB_EX          .equ    12              ; Extent byte (low byte)
+FCB_S1          .equ    13              ; Reserved / S1
+FCB_S2          .equ    14              ; Reserved / S2 (extent high bits in CP/M 3)
+FCB_RC          .equ    15              ; Record count in current extent (0-128)
+FCB_AL          .equ    16              ; Allocation block map (16 bytes, d0..d15)
+FCB_CR          .equ    32              ; Current record number within extent (0-127)
+FCB_R0          .equ    33              ; Random record pointer byte 0 (LSB)
+FCB_R1          .equ    34              ; Random record pointer byte 1
+FCB_R2          .equ    35              ; Random record pointer byte 2 (MSB / overflow)
+
+;----------------------------------------------------------------------------
+; ZCPR3 / Z-System Environment Descriptor Offsets
+;----------------------------------------------------------------------------
+Z3_NDR_OFF      .equ    15h             ; Named Directory table pointer offset (16-bit word)
+Z3_MDRV_OFF     .equ    2Ch             ; Maximum drive number offset (1 byte)
+Z3_MUSR_OFF     .equ    2Dh             ; Maximum user number offset (1 byte)
+Z3_WHEEL_OFF    .equ    2Eh             ; Wheel security byte offset (00h=normal, FFh=wheel)
+
+;----------------------------------------------------------------------------
+; Buffered File Channel Control Block (CIO) Offsets (168 bytes total)
+; Used by cpm_ch1_control_block and cpm_ch2_control_block in sz.asm
+;----------------------------------------------------------------------------
+CIO_FLAG        .equ    0               ; Channel state / open flag (00h=closed, FFh=open)
+CIO_COUNT       .equ    1               ; Remaining bytes in sector buffer (0..128)
+CIO_PTR         .equ    2               ; Pointer to current byte in sector buffer (16-bit)
+CIO_FCB         .equ    4               ; Embedded CP/M File Control Block (36 bytes)
+CIO_BUF         .equ    28h             ; Sector data buffer (128 bytes)
+CIO_BUF_OFF     .equ    26h             ; Offset from CIO_PTR (+2) to CIO_BUF (+28h)
+CIO_SIZE        .equ    0A8h            ; Total channel control block size (168 bytes)
+

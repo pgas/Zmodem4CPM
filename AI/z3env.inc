@@ -4,54 +4,58 @@
 ;============================================================================
 
 ;============================================================================
-; Function : get_fcb_ext_ptr
+; Function : z3_get_wheel_byte / get_fcb_ext_ptr
 ; Purpose  : Read Wheel byte offset (+2Eh) from Z3ENV descriptor
 ; Inputs   : HL = FCB pointer
 ; Outputs  : A = Wheel byte (00h = normal user, FFh = privileged wheel)
 ; Modifies : A, DE, HL
 ;============================================================================
+z3_get_wheel_byte:
 get_fcb_ext_ptr:
 	push	hl			; Preserve HL
 	push	de			; Preserve DE
-	ld	de, 2Eh			; Offset 2Eh in Z3ENV (WHEEL byte)
+	ld	de, Z3_WHEEL_OFF	; Offset in Z3ENV (WHEEL byte)
 	jp	fcb_field_get_offset	; Read byte from Z3ENV descriptor
 
 ;============================================================================
-; Function : get_fcb_name_ptr
+; Function : z3_get_max_drive / get_fcb_name_ptr
 ; Purpose  : Read Maximum Drive offset (+2Ch) from Z3ENV descriptor
 ; Inputs   : HL = FCB pointer
 ; Outputs  : A = Maximum drive number
 ; Modifies : A, DE, HL
 ;============================================================================
+z3_get_max_drive:
 get_fcb_name_ptr:
 	push	hl			; Preserve HL
 	push	de			; Preserve DE
-	ld	de, 2Ch			; Offset 2Ch in Z3ENV (MDRV = max drive)
+	ld	de, Z3_MDRV_OFF		; Offset in Z3ENV (MDRV = max drive)
 	jp	fcb_field_get_offset	; Read byte from Z3ENV descriptor
 
 ;============================================================================
-; Function : get_fcb_drive_ptr
+; Function : z3_get_max_user / get_fcb_drive_ptr
 ; Purpose  : Read Maximum User offset (+2Dh) from Z3ENV descriptor
 ; Inputs   : HL = FCB pointer
 ; Outputs  : A = Maximum user area number
 ; Modifies : A, DE, HL
 ;============================================================================
+z3_get_max_user:
 get_fcb_drive_ptr:
 	push	hl			; Preserve HL
 	push	de			; Preserve DE
-	ld	de, 2Dh			; Offset 2Dh in Z3ENV (MUSR = max user)
+	ld	de, Z3_MUSR_OFF		; Offset in Z3ENV (MUSR = max user)
 	jp	fcb_field_get_offset	; Read byte from Z3ENV descriptor
 
 ;============================================================================
-; Function : get_fcb_record_ptr
+; Function : z3_get_ndr_table / get_fcb_record_ptr
 ; Purpose  : Read Named Directory Table pointer (+15h) from Z3ENV descriptor
 ; Inputs   : DE = FCB pointer
 ; Outputs  : HL = pointer to Named Directory Table, A = count byte
 ; Modifies : A, DE, HL
 ;============================================================================
+z3_get_ndr_table:
 get_fcb_record_ptr:
 	push	de			; Preserve DE
-	ld	de, 15h			; Offset 15h in Z3ENV (NDR = named dir table ptr)
+	ld	de, Z3_NDR_OFF		; Offset in Z3ENV (NDR = named dir table ptr)
 	jp	fcb_rec_get_offset	; Read 16-bit word pointer from Z3ENV
 
 ;----------------------------------------------------------------------------
